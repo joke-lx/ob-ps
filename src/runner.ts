@@ -15,7 +15,11 @@ export type RunnerStatus = "running" | "exited" | "stopped";
  */
 export interface RunnerTab {
   id: string;
+  /** 显示名称,在 UI 上展示 */
+  name: string;
+  /** shell 命令 */
   command: string;
+  /** 工作目录 */
   cwd: string;
   status: RunnerStatus;
   exitCode: number | null;
@@ -31,13 +35,14 @@ const MAX_OUTPUT_CHARS = 200_000;
 let idCounter = 0;
 
 /** 创建一个尚未启动的新标签页 */
-export function createTab(command: string, cwd: string): RunnerTab {
+export function createTab(name: string, command: string, cwd: string): RunnerTab {
   idCounter += 1;
   return {
     id: `${Date.now().toString(36)}-${idCounter}`,
+    name,
     command,
     cwd,
-    status: "running",
+    status: "stopped",
     exitCode: null,
     output: "",
     child: null,
@@ -106,10 +111,15 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
     onChange();
   });
   child.on("close", (code: number | null) => {
-    tab.status = "exited";
-    tab.exitCode = code;
-    tab.child = null;
-    appendOutput(tab, `\n[进程退出,代码 ${code}]\n`);
+    // 避免 stopProcess 已设置 "stopped" 后被 close 覆盖为 "exited"
+    if (tab.status !== "stopped") {
+      tab.status = "exited";
+      tab.exitCode = code;
+      tab.child = null;
+      appendOutput(tab, `\n[进程退出,代码 ${code}]\n`);
+    } else {
+      tab.child = null;
+    }
     onChange();
   });
 }

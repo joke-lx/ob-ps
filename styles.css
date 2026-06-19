@@ -13,135 +13,224 @@
   overflow: hidden;
 }
 
-/* ---- Toolbar (tabs + add button) ---- */
-.runner-toolbar {
+/* ===== Header ===== */
+.runner-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
+  justify-content: space-between;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
 }
 
-.runner-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex: 1;
-  scrollbar-width: thin;
-}
-.runner-tabs::-webkit-scrollbar {
-  height: 6px;
+.runner-header-title {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
 }
 
-.runner-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+.runner-add-btn {
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  border: 1px solid transparent;
-  background: var(--interactive-normal);
   cursor: pointer;
-  white-space: nowrap;
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  user-select: none;
-}
-.runner-tab:hover {
-  background: var(--interactive-hover);
-  border-color: var(--background-modifier-border);
-}
-.runner-tab.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-.runner-tab-label {
-  max-width: 16ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.runner-tab-close {
-  opacity: 0.5;
-  font-size: 14px;
-  line-height: 1;
-}
-.runner-tab-close:hover {
-  opacity: 1;
-}
-
-.runner-tab-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-  background: var(--text-faint);
-}
-.runner-tab.is-running .runner-tab-dot {
-  background: #4caf50;
-}
-.runner-tab.is-stopped .runner-tab-dot {
-  background: var(--text-faint);
-}
-.runner-tab.is-exited .runner-tab-dot {
-  background: var(--text-muted);
-}
-
-.runner-tab-add {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  cursor: pointer;
   color: var(--text-muted);
-  flex: 0 0 auto;
+  flex-shrink: 0;
 }
-.runner-tab-add:hover {
+.runner-add-btn:hover {
   background: var(--interactive-hover);
   color: var(--text-normal);
 }
 
-/* ---- Controls row ---- */
-.runner-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-/* Settings-generated rows: flatten so buttons sit in a tight row. */
-.runner-controls .setting-item {
-  border: none;
-  padding: 0;
-  flex: 1 0 auto;
-}
-.runner-controls .setting-item-control {
-  gap: 6px;
-}
-
-/* ---- Output pane ---- */
-.runner-output {
+/* ===== Process list ===== */
+.runner-list {
   flex: 1;
-  margin: 0;
-  padding: 10px 12px;
-  overflow: auto;
-  font-family: var(--font-monospace);
-  font-size: var(--font-smaller);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--background-secondary-alt);
-  color: var(--text-normal);
-  scrollbar-width: thin;
+  overflow-y: auto;
+  padding: 4px 0;
 }
 
 .runner-empty {
   color: var(--text-faint);
-  font-family: var(--font-interface);
   text-align: center;
-  padding: 24px;
+  padding: 32px 16px;
+  font-size: var(--font-ui-small);
+}
+
+/* ===== Process item ===== */
+.runner-item {
+  margin-bottom: 2px;
+}
+
+/* ===== 按钮卡片 =====
+ * 整张卡片就是开关,点击切换启动/停止。
+ * 运行中 → 绿色边框 + 背景高亮
+ * 已退出 → 橙色边框
+ * 已停止 → 默认外观
+ */
+.runner-btn-card {
+  display: flex;
+  align-items: center;
+  margin: 0 8px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 2px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+.runner-btn-card:hover {
+  background: var(--interactive-hover);
+  border-color: var(--interactive-accent);
+}
+.runner-btn-card:active {
+  transform: scale(0.99);
+}
+
+/* 运行中:绿色光晕 */
+.runner-btn-card.is-running {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.08);
+}
+.runner-btn-card.is-running:hover {
+  background: rgba(76, 175, 80, 0.15);
+}
+
+/* 已退出:橙色 */
+.runner-btn-card.is-exited {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.06);
+}
+.runner-btn-card.is-exited:hover {
+  background: rgba(255, 152, 0, 0.12);
+}
+
+/* ---- 卡片左:指示灯 + 名称 ---- */
+.runner-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 指示灯 */
+.runner-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.runner-dot.is-running {
+  background: #4caf50;
+  box-shadow: 0 0 6px #4caf50;
+}
+.runner-dot.is-stopped {
+  background: var(--text-faint);
+}
+.runner-dot.is-exited {
+  background: #ff9800;
+}
+
+/* 自定义名称(主标签,加粗突出) */
+.runner-name {
+  font-weight: 700;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 卡片右:功能图标 ---- */
+.runner-card-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* 展开箭头 */
+.runner-expand {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.runner-expand:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 编辑/删除图标按钮 */
+.runner-card-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.runner-card-btn.is-edit:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.runner-card-btn.is-delete:hover {
+  background: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+}
+
+/* ===== 卡片底部状态栏 ===== */
+.runner-card-meta {
+  display: flex;
+  align-items: center;
+  padding: 2px 12px 4px;
+  margin: 0 8px;
+}
+
+.runner-status-text {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+.runner-status-text.is-running {
+  color: #4caf50;
+}
+.runner-status-text.is-exited {
+  color: #ff9800;
+}
+
+/* ===== Expanded output area ===== */
+.runner-body {
+  border-top: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary-alt);
+  display: none;
+  margin: 0 8px;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+.runner-item.is-expanded .runner-body {
+  display: block;
+}
+
+.runner-body .runner-output {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow: auto;
+  color: var(--text-normal);
+  scrollbar-width: thin;
 }
