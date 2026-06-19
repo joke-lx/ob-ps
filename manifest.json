@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "minAppVersion": "1.4.0",
   "description": "在侧边栏启动本地命令并查看输出(如 npm run dev / npx vite)。",
-  "author": "Local Runner",
+  "author": "joke-lx",
+  "authorUrl": "https://github.com/joke-lx/ob-ps",
   "isDesktopOnly": true
 }
