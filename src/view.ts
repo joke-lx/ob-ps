@@ -158,9 +158,9 @@ export class RunnerView extends ItemView {
 
   /** 打开 Obsidian 设置 → Local Runner 标签页 */
   private async openSettings(): Promise<void> {
-    await this.app.setting.open();
-    // openTabById 在类型中缺失但运行时存在
-    (this.app.setting as any).openTabById("local-runner");
+    const setting = (this.app as any).setting;
+    await setting.open();
+    setting.openTabById("local-runner");
   }
 
   // ---- Render ----------------------------------------------------------------

@@ -8,20 +8,12 @@ import {
 import {
   RUNNER_VIEW_TYPE,
   RunnerView,
+  type PluginSettings,
   type ProcessConfig,
   type ViewOptions,
 } from "./src/view";
 
 // ---- 插件设置 ---------------------------------------------------------------
-
-export interface PluginSettings {
-  /** 删除进程前是否确认 */
-  confirmBeforeDelete: boolean;
-  /** 输出区域是否自动滚动到底部 */
-  autoScrollOutput: boolean;
-  /** 输出缓冲上限(字符数) */
-  maxOutputChars: number;
-}
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   confirmBeforeDelete: true,
@@ -145,9 +137,9 @@ export default class LocalRunnerPlugin extends Plugin {
 
   /** 打开插件设置页 */
   async openSettings(): Promise<void> {
-    await this.app.setting.open();
-    // openTabById 不在类型中但运行时存在
-    (this.app.setting as any).openTabById(this.manifest.id);
+    const setting = (this.app as any).setting;
+    await setting.open();
+    setting.openTabById(this.manifest.id);
   }
 
   /** 激活(或首次创建)侧边栏视图并置顶显示 */

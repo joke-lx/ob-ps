@@ -1,50 +1,92 @@
 name: Release Obsidian plugin
 
-# 触发条件:推送任意 tag 时发布
 on:
     push:
         tags:
             - '*'
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "新版本号,如 1.0.1"
+                required: true
+                type: string
 
 jobs:
     build:
         runs-on: ubuntu-latest
         permissions:
-            contents: write          # 创建 release / 上传资产
-            id-token: write          # 构建来源证明(attestation)所需
+            contents: write
+            id-token: write
             attestations: write
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0          # 完整历史,version bump 提交用
 
             - name: Use Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'       # 缓存 npm,加速后续安装
+                  cache: 'npm'
 
-            - name: Build plugin      # 类型检查 + 生产打包
+            # workflow_dispatch 模式:自动更新 manifest.json + versions.json + 打 tag
+            - name: Bump version
+              if: ${{ github.event_name == 'workflow_dispatch' }}
+              run: |
+                VERSION="${{ inputs.version }}"
+                # 更新 manifest.json
+                sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" manifest.json
+                # 更新 versions.json:添加新版本映射(最低 Obsidian 版本沿用上一个)
+                PREV=$(jq -r 'keys[-1]' versions.json)
+                MIN_APP=$(jq -r ".[\"$PREV\"]" versions.json)
+                echo "{\"$VERSION\": \"$MIN_APP\"}" > /tmp/new.json
+                jq -s 'add' /tmp/new.json versions.json > versions_new.json
+                mv versions_new.json versions.json
+                # 提交并打 tag
+                git config user.name "github-actions"
+                git config user.email "github-actions@github.com"
+                git add manifest.json versions.json
+                git commit -m "chore(release): $VERSION"
+                git tag "$VERSION"
+
+            - name: Build plugin
               run: |
                   npm ci
                   npm run build
 
-            - name: Check for optional styles  # styles.css 可选,需探测是否存在
+            # workflow_dispatch 模式:推送 version bump 提交 + tag
+            - name: Push version bump
+              if: ${{ github.event_name == 'workflow_dispatch' }}
+              run: |
+                git push origin HEAD:main
+                git push origin "${{ inputs.version }}"
+
+            - name: Check for optional styles
               id: styles
               run: |
                   [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
 
-            - name: Attest build provenance     # 为产物签发来源证明(SLSA)
+            - name: Attest build provenance
               uses: actions/attest-build-provenance@v1
               with:
                   subject-path: |
                       main.js
                       ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
 
-            - name: Create release               # CI 通过即直接发布,无需人工确认
+            - name: Create release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
-
                   gh release create "$tag" \
                     --title="$tag" \
+                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+
+            - name: Create release (workflow_dispatch)
+              if: ${{ github.event_name == 'workflow_dispatch' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release create "${{ inputs.version }}" \
+                    --title="${{ inputs.version }}" \
                     main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
