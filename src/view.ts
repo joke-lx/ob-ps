@@ -38,6 +38,8 @@ export interface PluginSettings {
   repairLinksSkillInstalled: boolean;
   /** 是否启用高亮双链样式 */
   highlightWikilinks: boolean;
+  /** 卸载/删除插件时是否保留持久化数据(进程配置 + 设置) */
+  keepDataOnUninstall: boolean;
   /** 用户定义的命令组,用于快捷填充新建表单 */
   commandGroups: CommandGroup[];
 }
@@ -45,6 +47,7 @@ export interface PluginSettings {
 export const DEFAULT_SETTINGS: PluginSettings = {
   repairLinksSkillInstalled: false,
   highlightWikilinks: false,
+  keepDataOnUninstall: false,
   commandGroups: [],
 };
 

@@ -15,6 +15,7 @@ import {
 export const DEFAULT_SETTINGS: PluginSettings = {
   repairLinksSkillInstalled: false,
   highlightWikilinks: false,
+  keepDataOnUninstall: false,
   commandGroups: [],
 };
 
@@ -173,6 +174,27 @@ class LocalRunnerSettingTab extends PluginSettingTab {
             this.plugin.settings.highlightWikilinks = v;
             this.plugin.applyWikilinkStyle();
             void this.plugin.saveSettings();
+          },
+        );
+      });
+
+    // ---- 卸载时保留数据 ----
+    new Setting(containerEl)
+      .setName("卸载插件时保留数据")
+      .setDesc(
+        createFragment((frag) => {
+          frag.appendText(
+            "开启后,进程配置与设置会额外备份到 vault 中(独立于插件目录,卸载不会被清理);重新安装插件时自动恢复。关闭此开关会清除已有备份。",
+          );
+        }),
+      )
+      .addToggle((t) => {
+        t.setValue(this.plugin.settings.keepDataOnUninstall).onChange(
+          (v) => {
+            this.plugin.settings.keepDataOnUninstall = v;
+            void this.plugin.saveSettings().then(() => {
+              new Notice(v ? "✅ 已开启:卸载时保留数据" : "已关闭,并清除备份");
+            });
           },
         );
       });
@@ -357,9 +379,26 @@ export default class LocalRunnerPlugin extends Plugin {
 
   async onload(): Promise<void> {
     // 加载持久化数据
-    const data = (await this.loadData()) as PluginData | null;
+    let data = (await this.loadData()) as PluginData | null;
+
+    // 主数据缺失(卸载/重装后)时,尝试从 vault 级备份恢复
+    let restored = false;
+    if (data === null) {
+      const backup = this.restoreDataBackup();
+      if (backup) {
+        data = { processes: backup.processes, settings: backup.settings };
+        restored = true;
+      }
+    }
+
     this.savedConfigs = data?.processes ?? [];
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+
+    // 恢复成功后立即写回主数据位置,使后续 loadData 命中
+    if (restored) {
+      await this.saveSettings();
+      new Notice("✅ 已从备份恢复进程配置与设置");
+    }
 
     // 如果已安装但目标不存在,自动修正状态
     if (this.settings.repairLinksSkillInstalled) {
@@ -384,7 +423,7 @@ export default class LocalRunnerPlugin extends Plugin {
     });
 
     // 功能区图标:点击打开侧边栏
-    this.addRibbonIcon("terminal", "本地进程", () => {
+    this.addRibbonIcon("play", "本地进程", () => {
       void this.activateView();
     });
 
@@ -429,6 +468,76 @@ export default class LocalRunnerPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData({ processes: this.savedConfigs, settings: this.settings });
+    // 开启保留时同步刷新备份;关闭时清除已有备份
+    if (this.settings.keepDataOnUninstall) {
+      this.writeDataBackup();
+    } else {
+      this.removeDataBackup();
+    }
+  }
+
+  /** 数据备份文件名,存放在 vault 的 .obsidian 目录下(卸载插件时不会被清理) */
+  private static readonly BACKUP_FILE = "local-runner-backup.json";
+
+  /** 数据备份文件绝对路径 */
+  private getDataBackupPath(): string {
+    const vault = this.getDefaultCwd();
+    return path.join(vault, this.app.vault.configDir, LocalRunnerPlugin.BACKUP_FILE);
+  }
+
+  /** 将当前持久化数据写入 vault 级备份 */
+  private writeDataBackup(): void {
+    const vault = this.getDefaultCwd();
+    if (!vault) {
+      return;
+    }
+    try {
+      const backupPath = this.getDataBackupPath();
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+      fs.writeFileSync(
+        backupPath,
+        JSON.stringify({ processes: this.savedConfigs, settings: this.settings }),
+        "utf8",
+      );
+    } catch (err) {
+      new Notice(`❌ 写入数据备份失败: ${(err as Error).message}`);
+    }
+  }
+
+  /** 删除 vault 级备份(若存在) */
+  private removeDataBackup(): void {
+    const backupPath = this.getDataBackupPath();
+    try {
+      if (fs.existsSync(backupPath)) {
+        fs.rmSync(backupPath, { force: true });
+      }
+    } catch (err) {
+      new Notice(`❌ 清除数据备份失败: ${(err as Error).message}`);
+    }
+  }
+
+  /** 从 vault 级备份读取持久化数据,读取后即删除备份(一次性恢复) */
+  private restoreDataBackup(): {
+    processes: ProcessConfig[];
+    settings?: PluginSettings;
+  } | null {
+    const backupPath = this.getDataBackupPath();
+    if (!fs.existsSync(backupPath)) {
+      return null;
+    }
+    try {
+      const raw = fs.readFileSync(backupPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        processes?: ProcessConfig[];
+        settings?: PluginSettings;
+      };
+      // 恢复后删除备份,避免后续卸载时残留
+      fs.rmSync(backupPath, { force: true });
+      return { processes: parsed.processes ?? [], settings: parsed.settings };
+    } catch (err) {
+      new Notice(`❌ 恢复数据备份失败: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   private buildViewOptions(): ViewOptions {
