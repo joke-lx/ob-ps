@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, Modal, Notice, Setting, WorkspaceLeaf, setIcon } from "obsidian";
 import {
   createTab,
   isRunning,
@@ -158,9 +158,9 @@ export class RunnerView extends ItemView {
 
   /** 打开 Obsidian 设置 → Local Runner 标签页 */
   private async openSettings(): Promise<void> {
-    const setting = (this.app as any).setting;
-    await setting.open();
-    setting.openTabById("local-runner");
+    const app = this.app as { setting: { open(): Promise<void>; openTabById(id: string): void } };
+    await app.setting.open();
+    app.setting.openTabById("local-runner");
   }
 
   // ---- Render ----------------------------------------------------------------
@@ -215,7 +215,7 @@ export class RunnerView extends ItemView {
 
     // 左:指示灯 + 自定义名称(主标签)
     const left = card.createDiv({ cls: "runner-card-left" });
-    const dot = left.createDiv({ cls: `runner-dot is-${tab.status}` });
+    left.createDiv({ cls: `runner-dot is-${tab.status}` });
     const nameEl = left.createSpan({ cls: "runner-name", text: tab.name });
     nameEl.setAttr("title", `${tab.command}\n${tab.cwd}`);
 
@@ -336,9 +336,16 @@ export class RunnerView extends ItemView {
     if (this.opts.settings.confirmBeforeDelete) {
       const tab = this.tabs.find((t) => t.id === id);
       if (!tab) return;
-      if (!confirm(`确认删除进程「${tab.name}」？`)) return;
+      new ConfirmModal(this.app, `确认删除进程「${tab.name}」？`, () => {
+        this.doDeleteProcess(id);
+      }).open();
+      return;
     }
+    this.doDeleteProcess(id);
+  }
 
+  /** 实际执行删除(跳过确认) */
+  private doDeleteProcess(id: string): void {
     const idx = this.tabs.findIndex((t) => t.id === id);
     if (idx === -1) return;
 

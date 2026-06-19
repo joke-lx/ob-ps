@@ -21,6 +21,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   maxOutputChars: 200_000,
 };
 
+/** 编程方式跳转到设置标签页(内部 API) */
+interface AppWithSetting {
+  setting: { open(): Promise<void>; openTabById(id: string): void };
+}
+
 /** 持久化插件数据格式 */
 interface PluginData {
   processes: ProcessConfig[];
@@ -41,7 +46,7 @@ class LocalRunnerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Local Runner 设置" });
+    new Setting(containerEl).setName("Local runner 设置").setHeading();
 
     new Setting(containerEl)
       .setName("删除前确认")
@@ -74,7 +79,6 @@ class LocalRunnerSettingTab extends PluginSettingTab {
         s
           .setLimits(10_000, 500_000, 10_000)
           .setValue(this.plugin.settings.maxOutputChars)
-          .setDynamicTooltip()
           .onChange(async (v) => {
             this.plugin.settings.maxOutputChars = v;
             await this.plugin.saveSettings();
@@ -137,9 +141,9 @@ export default class LocalRunnerPlugin extends Plugin {
 
   /** 打开插件设置页 */
   async openSettings(): Promise<void> {
-    const setting = (this.app as any).setting;
-    await setting.open();
-    setting.openTabById(this.manifest.id);
+    const app = this.app as AppWithSetting;
+    await app.setting.open();
+    app.setting.openTabById(this.manifest.id);
   }
 
   /** 激活(或首次创建)侧边栏视图并置顶显示 */
