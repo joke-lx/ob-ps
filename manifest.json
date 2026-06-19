@@ -1,7 +1,7 @@
 {
   "id": "local-runner",
   "name": "Local Runner",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "1.7.2",
   "description": "在侧边栏启动本地命令并查看输出(如 npm run dev / npx vite)。",
   "author": "joke-lx",
