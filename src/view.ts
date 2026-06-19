@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, Modal, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import {
   createTab,
   isRunning,
@@ -346,7 +346,17 @@ export class RunnerView extends ItemView {
     this.renderAll();
   }
 
+  /** 删除进程:先弹确认,确认后才真正执行 */
   private deleteProcess(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) return;
+    new ConfirmModal(this.app, `确认删除进程「${tab.name}」？`, () => {
+      this.doDeleteProcess(id);
+    }).open();
+  }
+
+  /** 真正执行删除(已通过 ConfirmModal 确认) */
+  private doDeleteProcess(id: string): void {
     const idx = this.tabs.findIndex((t) => t.id === id);
     if (idx === -1) return;
 
@@ -649,5 +659,36 @@ export class RunnerView extends ItemView {
     if (tab.status === "running") return "运行中";
     if (tab.status === "stopped") return "已停止";
     return `已退出 (${tab.exitCode ?? "?"})`;
+  }
+}
+
+/** 二次确认弹窗:替代被 ESLint 禁止的原生 confirm() */
+class ConfirmModal extends Modal {
+  private readonly message: string;
+  private readonly onConfirm: () => void;
+
+  constructor(app: import("obsidian").App, message: string, onConfirm: () => void) {
+    super(app);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+
+  onOpen(): void {
+    this.titleEl.setText("确认操作");
+    this.contentEl.createEl("p", { cls: "runner-confirm-msg", text: this.message });
+
+    const actions = this.contentEl.createDiv({ cls: "runner-confirm-actions" });
+    const cancelBtn = actions.createEl("button", { text: "取消" });
+    cancelBtn.addEventListener("click", () => this.close());
+
+    const confirmBtn = actions.createEl("button", { cls: "mod-warning", text: "确认删除" });
+    confirmBtn.addEventListener("click", () => {
+      this.onConfirm();
+      this.close();
+    });
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }

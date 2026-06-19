@@ -1,4 +1,6 @@
 import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from "obsidian";
+import { spawn } from "child_process";
+import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 import {
@@ -33,78 +35,141 @@ interface PluginData {
 // ---- 工具函数 ---------------------------------------------------------------
 
 const SKILL_NAME = "obsidian-repair-unresolved-links";
+/** 远端 skill 仓库地址(npx skills add 的目标) */
+const SKILL_ADD_URL =
+  "https://github.com/ZHLX2005/sl/tree/main/skills/obsidian-repair-unresolved-links";
 
-/** 获取插件在 vault 中的安装目录(绝对路径) */
-function getPluginInstallDir(plugin: LocalRunnerPlugin): string {
-  const vault = plugin.getDefaultCwd();
-  const rel = plugin.manifest.dir;
-  if (rel) {
-    return path.join(vault, rel);
-  }
-  // fallback: vault 配置目录 + plugins/插件名
-  return path.join(vault, plugin.app.vault.configDir, "plugins", plugin.manifest.id);
-}
-
-/** 插件自带的 skill 源目录(位于插件安装目录下的 .claude/skills/) */
-function getSkillSourceDir(plugin: LocalRunnerPlugin): string {
-  return path.join(getPluginInstallDir(plugin), ".claude", "skills", SKILL_NAME);
-}
-
-/** 仓库目标的 .claude/skills 目录 */
+/** 仓库目标的 .claude/skills 目录(用于存在性检查与卸载回退) */
 function getSkillDestDir(vaultPath: string): string {
   return path.join(vaultPath, ".claude", "skills", SKILL_NAME);
 }
 
-/** 安装 skill: 将插件自带的 skill 目录复制到仓库 */
-function installSkill(plugin: LocalRunnerPlugin): boolean {
+/** 全局 skills 安装位置(取决于 OS,Claude Code 通常为 ~/.claude/skills) */
+function getGlobalSkillDir(): string {
+  return path.join(os.homedir(), ".claude", "skills", SKILL_NAME);
+}
+
+/**
+ * 在 vault 工作区执行 shell 命令,完成后回调。
+ * 捕获 stderr 以便失败时给出有意义的提示。
+ */
+function runInVault(
+  plugin: LocalRunnerPlugin,
+  command: string,
+  onDone: (success: boolean, message: string) => void,
+): void {
   const vault = plugin.getDefaultCwd();
   if (!vault) {
-    new Notice("无法获取 vault 路径");
-    return false;
+    onDone(false, "无法获取 vault 路径");
+    return;
   }
 
-  const src = getSkillSourceDir(plugin);
-  const dest = getSkillDestDir(vault);
+  const child = spawn(command, {
+    cwd: vault,
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
 
+  let stderr = "";
+  child.stderr?.on("data", (d: Buffer) => {
+    stderr += d.toString();
+  });
+  child.on("error", (err: Error) => onDone(false, err.message));
+  child.on("close", (code: number | null) => {
+    onDone(code === 0, stderr.trim());
+  });
+}
+
+/**
+ * 复制目录(覆盖已存在的目标)
+ */
+function copyDirSync(src: string, dest: string): void {
   if (!fs.existsSync(src)) {
-    new Notice(`未找到 skill 源目录: ${src}`);
-    return false;
+    throw new Error(`源目录不存在: ${src}`);
   }
+  if (fs.existsSync(dest)) {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.cpSync(src, dest, { recursive: true });
+}
 
-  try {
-    // 如果目标已存在则先删除,保证覆盖
-    if (fs.existsSync(dest)) {
-      fs.rmSync(dest, { recursive: true, force: true });
+/**
+ * 安装 skill: 在 vault 工作区执行 `npx --yes skills add <url>`,
+ * 让 CLI 处理 git clone + 从 monorepo 子目录提取,
+ * 然后把 CLI 落盘的全局目录复制到 vault 的 `.claude/skills/`。
+ */
+function installSkill(plugin: LocalRunnerPlugin, onDone: (success: boolean) => void): void {
+  const vault = plugin.getDefaultCwd();
+  // eslint-disable-next-line obsidianmd/rule-custom-message
+  console.log("[Local Runner] install skill — vault cwd:", vault);
+  // eslint-disable-next-line obsidianmd/rule-custom-message
+  console.log("[Local Runner] install skill — dest:", vault ? getSkillDestDir(vault) : "(no vault)");
+  // eslint-disable-next-line obsidianmd/rule-custom-message
+  console.log("[Local Runner] install skill — global staging:", getGlobalSkillDir());
+
+  new Notice("正在安装双链修复 skill...");
+
+  const cmd = `npx --yes skills add ${SKILL_ADD_URL}`;
+  // eslint-disable-next-line obsidianmd/rule-custom-message
+  console.log("[Local Runner] install skill — command:", cmd);
+
+  runInVault(plugin, cmd, (ok, msg) => {
+    if (!ok) {
+      new Notice(`❌ 安装 skill 失败: ${msg || "未知错误"}`);
+      onDone(false);
+      return;
     }
-    // 确保父目录存在
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.cpSync(src, dest, { recursive: true });
-    new Notice("✅ 双链修复 skill 已安装到仓库");
-    return true;
-  } catch (err) {
-    new Notice(`❌ 安装 skill 失败: ${(err as Error).message}`);
-    return false;
-  }
+
+    // CLI 成功 → 从全局目录搬到 vault
+    const globalDir = getGlobalSkillDir();
+    if (!vault) {
+      onDone(false);
+      return;
+    }
+    if (!fs.existsSync(globalDir)) {
+      new Notice("❌ CLI 未在全局位置生成 skill,可能目标地址有误");
+      onDone(false);
+      return;
+    }
+
+    try {
+      const destDir = getSkillDestDir(vault);
+      copyDirSync(globalDir, destDir);
+      // eslint-disable-next-line obsidianmd/rule-custom-message
+      console.log("[Local Runner] install skill — copied to vault:", destDir);
+      new Notice("✅ 双链修复 skill 已安装到仓库");
+      onDone(true);
+    } catch (err) {
+      new Notice(`❌ 复制到 vault 失败: ${(err as Error).message}`);
+      onDone(false);
+    }
+  });
 }
 
 /** 卸载 skill: 删除仓库中的 skill 目录 */
-function uninstallSkill(plugin: LocalRunnerPlugin): boolean {
+function uninstallSkill(plugin: LocalRunnerPlugin, onDone: (success: boolean) => void): void {
   const vault = plugin.getDefaultCwd();
-  if (!vault) return true;
+  if (!vault) {
+    onDone(false);
+    return;
+  }
 
   const dest = getSkillDestDir(vault);
-
   if (!fs.existsSync(dest)) {
-    return true;
+    new Notice("已移除双链修复 skill");
+    onDone(true);
+    return;
   }
 
   try {
     fs.rmSync(dest, { recursive: true, force: true });
     new Notice("已移除双链修复 skill");
-    return true;
+    onDone(true);
   } catch (err) {
     new Notice(`❌ 移除 skill 失败: ${(err as Error).message}`);
-    return false;
+    onDone(false);
   }
 }
 
@@ -135,23 +200,31 @@ class LocalRunnerSettingTab extends PluginSettingTab {
       .setName("添加双链修复 skill")
       .setDesc(
         createFragment((frag) => {
-          frag.appendText("将 ");
+          frag.appendText("在当前仓库工作区执行 ");
+          // eslint-disable-next-line obsidianmd/ui/sentence-case
+          frag.createEl("code", { text: "npx skills add" });
+          frag.appendText(" 从远端拉取 ");
           frag.createEl("code", { text: SKILL_NAME });
-          frag.appendText(" skill 安装到仓库 .claude/skills 目录,用于自动补全未解析的双链");
+          frag.appendText(" skill,安装到 .claude/skills 目录");
         }),
       )
       .addToggle((t) => {
         t.setValue(this.plugin.settings.repairLinksSkillInstalled).onChange(
           (v) => {
             if (v) {
-              const ok = installSkill(this.plugin);
-              this.plugin.settings.repairLinksSkillInstalled = ok;
+              installSkill(this.plugin, (ok) => {
+                this.plugin.settings.repairLinksSkillInstalled = ok;
+                void this.plugin.saveSettings();
+                t.setValue(ok);
+              });
             } else {
-              uninstallSkill(this.plugin);
-              this.plugin.settings.repairLinksSkillInstalled = false;
+              uninstallSkill(this.plugin, (ok) => {
+                // 卸载失败则回退到已安装状态
+                this.plugin.settings.repairLinksSkillInstalled = !ok;
+                void this.plugin.saveSettings();
+                t.setValue(this.plugin.settings.repairLinksSkillInstalled);
+              });
             }
-            void this.plugin.saveSettings();
-            t.setValue(this.plugin.settings.repairLinksSkillInstalled);
           },
         );
       });

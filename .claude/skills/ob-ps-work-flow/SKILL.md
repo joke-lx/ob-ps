@@ -40,8 +40,9 @@ npm run lint         # → eslint .
 ### esbuild 输出策略
 
 - **生产/CI 模式**(`--production`):只写 `main.js` 到项目根目录,供 `release.yml` 上传为 release assets
-- **开发模式**(无 `--production`):写 `main.js` + 同步到 `../123/.obsidian/plugins/local-runner/`(manifest、styles 一并同步)
+- **开发模式**(无 `--production`):写 `main.js` + 同步到 `../123/.obsidian/plugins/local-runner/`(manifest、styles、`.claude/skills/obsidian-repair-unresolved-links` 一并同步)
 - 可通过环境变量 `LOCAL_RUNNER_VAULT` 覆盖同步目标路径
+- skill 一并同步是**刻意的**:设置页「添加双链修复 skill」开关依赖插件安装目录下存在该 skill 源目录(`main.ts` 的 `installSkill()` 从 `getPluginInstallDir()/.claude/skills/` 读取)。注意 release zip 只含 `main.js`/`manifest.json`/`styles.css`、**不含** skill,所以该开关仅在 dev/同步安装下可用
 
 ## 源文件职责
 
@@ -156,21 +157,21 @@ eslint 使用 `typescript-eslint` + `eslint-plugin-obsidianmd` 推荐规则。
 ```mermaid
 flowchart LR
     LINT[push/PR: lint.yml] --> BUILD[npm ci + tsc + esbuild + lint]
-    TAG[push tag: release.yml] --> RELEASE[npm ci + build + attest + gh release --draft]
+    MAIN[push main: release.yml] --> REL[bump patch + build + 打包 zip + attest + tag + gh release]
 ```
 
 ### lint.yml
 
 ```yaml
-# 矩阵测试 Node 20/22/24
+# 矩阵测试 Node 20/22
 npm ci → npm run build → npm run lint
 ```
 
 ### release.yml
 
 ```yaml
-# 推送 tag 时:构建 + 签发来源证明 + 创建草稿 release
-npm ci → npm run build → attest(provenance) → gh release create --draft
+# 推送 main 时(跳过 [skip ci] 提交):自动 bump patch → 构建 → 打包 zip → attest → 提交版本+tag → gh release(非草稿)
+bump patch(manifest+versions) → npm ci → npm run build → 打包 local-runner-<ver>.zip → attest(provenance) → commit+tag → gh release create
 ```
 
 ## tsconfig 规范
@@ -200,4 +201,3 @@ npm ci → npm run build → attest(provenance) → gh release create --draft
 | 使用 `setDynamicTooltip()` | 新版 Obsidian 已弃用 | 直接删除(值默认内联显示) |
 | `confirm()` 做删除确认 | ESLint `no-alert` | 继承 `Modal` 写确认弹窗类 |
 | 正则里直接写 `\x1B` | ESLint `no-control-regex` | 提为常量变量 + `eslint-disable-next-line` |
-| 将 skill 放在 `esbuild` 的 `if(syncToVault)` 块中一并同步 | skill 是 Claude Code 的指令,不应跟插件发布流程绑定 | skill 安装在 `~/.claude/skills/` 或目标 vault 的 `.claude/skills/` |
