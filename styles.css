@@ -531,15 +531,16 @@
 }
 
 /* ===== Highlighted Wikilinks ===============================================
- * 极简杂志风 · 顶级行业设计
+ * 静谧辉煌 · 极简克制设计
  *
- * 设计语言:关键词标签美学
- * - 醒目的色块背景,文字反转(彩底白字)
- * - 大胆圆角,如杂志标题的tag
- * - 悬停时轻微放大+色深,触感反馈
- * - 未创建页面用虚线框+灰阶,优雅提示
+ * 设计哲学:
+ * - 不破坏阅读节奏 — 不是色块,不是按钮
+ * - 文字本身就是强调色 — 让链接的"高亮"体现在字色本身
+ * - 顶部细线下划线 — 偏现代的"反传统"细节
+ * - 微妙的内嵌背景 — 仅有4%饱和度,若有若无
+ * - 悬停时:背景加深 + 细微lift + 文字色增强
  *
- * 灵感来源:Monocle杂志、Kinfolk、纽约时报
+ * 灵感来源:Vercel/Linear 等顶级工程品牌
  *
  * 控制 body class: .ob-ps-hl-wl
  * ========================================================================== */
@@ -547,121 +548,131 @@
 /* ---- Reading Mode (阅读视图) ---- */
 body.ob-ps-hl-wl .internal-link {
   position: relative;
-  display: inline;
-
-  /* 去除默认下划线 */
+  display: inline-block;
   text-decoration: none !important;
 
-  /* 醒目的强调色背景 - 文字反转 */
-  background-color: var(--interactive-accent);
-  color: var(--text-on-accent) !important;
+  /* 文字颜色本身就是强调色 — 这是核心 */
+  color: var(--interactive-accent);
 
-  /* 大胆圆角 - 杂志tag风格 */
-  border-radius: 6px;
-  padding: 2px 8px;
-  margin: 0 -3px;
+  /* 字重略加,但不夸张 */
+  font-weight: 500;
 
-  /* 字重稍加,增强标签感 */
-  font-weight: 600;
-  font-size: 0.95em;
+  /* 几乎透明的背景,只有细节点缀 */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 88%,
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 88%,
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 96%,
+    transparent 96%
+  );
 
-  /* 柔和的盒阴影 - 轻微抬起感 */
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, 0.08),
-    0 0.5px 2px rgba(0, 0, 0, 0.04);
+  /* 顶部细线 — 模拟上划线,但从底部开始,创造"下沉"感 */
+  border-radius: 2px;
+  padding: 1px 5px;
+  margin: 0 -2px;
 
-  /* 顺畅的物理动画 */
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* 流畅的过渡 */
+  transition: all 0.18s ease;
 }
 
-/* 悬停:轻微放大 + 阴影加深 + 色相微调 */
+/* 悬停:精细的细节强化 */
 body.ob-ps-hl-wl .internal-link:hover {
-  transform: scale(1.05);
-  box-shadow:
-    0 3px 12px rgba(0, 0, 0, 0.12),
-    0 1px 4px rgba(0, 0, 0, 0.08);
+  /* 背景渐变下移,创造下划线"长出"的感觉 */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 84%,
+    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 84%,
+    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 94%,
+    transparent 94%
+  );
 
-  /* 滤镜调整 - 让颜色稍微亮一点 */
-  filter: brightness(1.08);
+  /* 文字色加深 */
+  filter: brightness(0.92) saturate(1.1);
 }
 
-/* 点击时:轻微按下效果 */
-body.ob-ps-hl-wl .internal-link:active {
-  transform: scale(0.98);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* ---- 未创建页面:虚线框优雅提示 ---- */
+/* ---- 未创建页面:细致虚线下划线 ---- */
 body.ob-ps-hl-wl .internal-link.is-unresolved {
-  /* 无背景,仅边框 */
-  background-color: transparent !important;
-  color: var(--text-muted) !important;
+  color: var(--text-muted);
 
-  /* 虚线框 - 待创建的视觉语言 */
-  border: 1.5px dashed var(--text-muted);
-  border-radius: 5px;
-  padding: 1px 7px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 88%,
+    color-mix(in srgb, var(--text-muted) 35%, transparent) 88%,
+    color-mix(in srgb, var(--text-muted) 35%, transparent) 96%,
+    transparent 96%
+  );
 
-  /* 字重回归正常 */
   font-weight: 400;
-
-  /* 轻微透明 */
-  opacity: 0.7;
-
-  /* 无阴影 */
-  box-shadow: none;
+  opacity: 0.85;
 }
 
 body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
-  /* 悬停时加深色 */
-  color: var(--text-normal) !important;
-  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 84%,
+    color-mix(in srgb, var(--text-muted) 55%, transparent) 84%,
+    color-mix(in srgb, var(--text-muted) 55%, transparent) 94%,
+    transparent 94%
+  );
   opacity: 1;
-
-  /* 轻微抬起的阴影 */
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* ---- Live Preview (实时编辑 / CM6) ---- */
 body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline {
   position: relative;
-  display: inline;
+  display: inline-block;
+  text-decoration: none !important;
 
-  background-color: var(--interactive-accent);
-  color: var(--text-on-accent);
-  border-radius: 5px;
-  padding: 2px 6px;
+  color: var(--interactive-accent);
+  font-weight: 500;
+
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 88%,
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 88%,
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 96%,
+    transparent 96%
+  );
+
+  border-radius: 2px;
+  padding: 1px 4px;
   margin: 0 -2px;
 
-  font-weight: 600;
-  font-size: 0.95em;
-
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, 0.08),
-    0 0.5px 2px rgba(0, 0, 0, 0.04);
-
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.18s ease;
 }
 
 /* CM6 未创建链接 */
 body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
-  background-color: transparent !important;
   color: var(--text-muted);
-  border: 1.5px dashed var(--text-muted);
-  border-radius: 4px;
-  padding: 1px 5px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 88%,
+    color-mix(in srgb, var(--text-muted) 35%, transparent) 88%,
+    color-mix(in srgb, var(--text-muted) 35%, transparent) 96%,
+    transparent 96%
+  );
   font-weight: 400;
-  opacity: 0.7;
-  box-shadow: none;
+  opacity: 0.85;
 }
 
-/* CM6 光标停留 / 激活状态 */
+/* CM6 激活/悬停状态 */
 body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline:hover,
 body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .cm-underline {
-  transform: scale(1.03);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.1);
-  filter: brightness(1.06);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 84%,
+    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 84%,
+    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 94%,
+    transparent 94%
+  );
+
+  filter: brightness(0.92) saturate(1.1);
 }
