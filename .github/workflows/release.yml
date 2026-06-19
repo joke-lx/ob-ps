@@ -52,12 +52,24 @@ jobs:
               run: |
                   [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
 
+            - name: Package distribution zip
+              id: package
+              run: |
+                  PLUGIN_ID=$(jq -r '.id' manifest.json)
+                  NEW="${{ steps.version.outputs.new }}"
+                  ZIP_NAME="${PLUGIN_ID}-${NEW}.zip"
+                  FILES="main.js manifest.json"
+                  if [ -f styles.css ]; then FILES="$FILES styles.css"; fi
+                  zip -r "$ZIP_NAME" $FILES
+                  echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
             - name: Attest build provenance
               uses: actions/attest-build-provenance@v1
               with:
                   subject-path: |
                       main.js
                       ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                      ${{ steps.package.outputs.zip_name }}
 
             - name: Commit, tag & release
               env:
@@ -78,4 +90,5 @@ jobs:
                   gh release create "$NEW" \
                     --title="$NEW" \
                     --generate-notes \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }} \
+                    "${{ steps.package.outputs.zip_name }}"
