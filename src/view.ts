@@ -17,8 +17,23 @@ export interface ProcessConfig {
   cwd: string;
 }
 
+// ---- 插件设置 ---------------------------------------------------------------
+
+export interface PluginSettings {
+  confirmBeforeDelete: boolean;
+  autoScrollOutput: boolean;
+  maxOutputChars: number;
+}
+
+export const DEFAULT_SETTINGS: PluginSettings = {
+  confirmBeforeDelete: true,
+  autoScrollOutput: true,
+  maxOutputChars: 200_000,
+};
+
 export interface ViewOptions {
   defaultCwd: string;
+  settings: PluginSettings;
   onSaveConfigs: (configs: ProcessConfig[]) => void;
 }
 
@@ -104,15 +119,33 @@ export class RunnerView extends ItemView {
     this.renderAll();
   }
 
+  /** 更新已注入的设置(main.ts 在设置变更时调用) */
+  updateSettings(): void {
+    // 目前设置仅在交互时校验,无需重建 UI
+  }
+
   // ---- UI Build -------------------------------------------------------------
 
   private buildUi(): void {
     const root = this.contentEl.createDiv({ cls: "runner-view" });
 
-    // 头部:标题 + 新建按钮
+    // 头部:标题 + 设置按钮
     const header = root.createDiv({ cls: "runner-header" });
     header.createSpan({ cls: "runner-header-title", text: "本地进程管理" });
-    const addBtn = header.createDiv({ cls: "runner-add-btn", title: "新建进程" });
+
+    const headerRight = header.createDiv({ cls: "runner-header-right" });
+
+    const settingsBtn = headerRight.createDiv({
+      cls: "runner-header-btn",
+      title: "设置",
+    });
+    setIcon(settingsBtn, "gear");
+    settingsBtn.addEventListener("click", () => void this.openSettings());
+
+    const addBtn = headerRight.createDiv({
+      cls: "runner-header-btn",
+      title: "新建进程",
+    });
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => this.showAddForm());
 
@@ -121,6 +154,13 @@ export class RunnerView extends ItemView {
 
     // 进程列表
     this.listEl = root.createDiv({ cls: "runner-list" });
+  }
+
+  /** 打开 Obsidian 设置 → Local Runner 标签页 */
+  private async openSettings(): Promise<void> {
+    await this.app.setting.open();
+    // openTabById 在类型中缺失但运行时存在
+    (this.app.setting as any).openTabById("local-runner");
   }
 
   // ---- Render ----------------------------------------------------------------
@@ -229,7 +269,7 @@ export class RunnerView extends ItemView {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
     const forceScroll = this.expandScrollId === tab.id;
     el.setText(tab.output || "（无输出）");
-    if (forceScroll || nearBottom) {
+    if (this.opts.settings.autoScrollOutput && (forceScroll || nearBottom)) {
       el.scrollTop = el.scrollHeight;
     }
   }
@@ -292,6 +332,13 @@ export class RunnerView extends ItemView {
   }
 
   private deleteProcess(id: string): void {
+    // 设置支持确认弹窗
+    if (this.opts.settings.confirmBeforeDelete) {
+      const tab = this.tabs.find((t) => t.id === id);
+      if (!tab) return;
+      if (!confirm(`确认删除进程「${tab.name}」？`)) return;
+    }
+
     const idx = this.tabs.findIndex((t) => t.id === id);
     if (idx === -1) return;
 
@@ -463,6 +510,8 @@ export class RunnerView extends ItemView {
     this.clearForm();
     this.renderAll();
   }
+
+  // ---- 辅助方法 --------------------------------------------------------------
 
   private saveConfigs(): void {
     this.opts.onSaveConfigs(

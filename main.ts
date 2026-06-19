@@ -1,4 +1,10 @@
-import { FileSystemAdapter, Plugin, WorkspaceLeaf } from "obsidian";
+import {
+  FileSystemAdapter,
+  Plugin,
+  PluginSettingTab,
+  Setting,
+  WorkspaceLeaf,
+} from "obsidian";
 import {
   RUNNER_VIEW_TYPE,
   RunnerView,
@@ -6,10 +12,86 @@ import {
   type ViewOptions,
 } from "./src/view";
 
+// ---- 插件设置 ---------------------------------------------------------------
+
+export interface PluginSettings {
+  /** 删除进程前是否确认 */
+  confirmBeforeDelete: boolean;
+  /** 输出区域是否自动滚动到底部 */
+  autoScrollOutput: boolean;
+  /** 输出缓冲上限(字符数) */
+  maxOutputChars: number;
+}
+
+export const DEFAULT_SETTINGS: PluginSettings = {
+  confirmBeforeDelete: true,
+  autoScrollOutput: true,
+  maxOutputChars: 200_000,
+};
+
 /** 持久化插件数据格式 */
 interface PluginData {
   processes: ProcessConfig[];
+  settings?: PluginSettings;
 }
+
+// ---- 设置标签页 --------------------------------------------------------------
+
+class LocalRunnerSettingTab extends PluginSettingTab {
+  private readonly plugin: LocalRunnerPlugin;
+
+  constructor(app: import("obsidian").App, plugin: LocalRunnerPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    containerEl.createEl("h2", { text: "Local Runner 设置" });
+
+    new Setting(containerEl)
+      .setName("删除前确认")
+      .setDesc("点击删除进程图标时弹出确认提示")
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.confirmBeforeDelete)
+          .onChange(async (v) => {
+            this.plugin.settings.confirmBeforeDelete = v;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("输出自动滚动")
+      .setDesc("新内容输出时自动滚动到控制台底部")
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.autoScrollOutput)
+          .onChange(async (v) => {
+            this.plugin.settings.autoScrollOutput = v;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("输出缓冲上限")
+      .setDesc("单个进程保留的最大输出字符数(越大越占内存)")
+      .addSlider((s) =>
+        s
+          .setLimits(10_000, 500_000, 10_000)
+          .setValue(this.plugin.settings.maxOutputChars)
+          .setDynamicTooltip()
+          .onChange(async (v) => {
+            this.plugin.settings.maxOutputChars = v;
+            await this.plugin.saveSettings();
+          }),
+      );
+  }
+}
+
+// ---- 插件入口 ---------------------------------------------------------------
 
 /**
  * Local Runner —— Obsidian 侧边栏插件。
@@ -20,11 +102,17 @@ interface PluginData {
 export default class LocalRunnerPlugin extends Plugin {
   /** 已保存的进程配置,view 构造时传入 */
   private savedConfigs: ProcessConfig[] = [];
+  /** 设置 */
+  settings: PluginSettings = DEFAULT_SETTINGS;
 
   async onload(): Promise<void> {
-    // 先加载持久化配置,再注册视图工厂
-    const data = await this.loadData() as PluginData | null;
+    // 加载持久化数据
+    const data = (await this.loadData()) as PluginData | null;
     this.savedConfigs = data?.processes ?? [];
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+
+    // 注册设置标签页
+    this.addSettingTab(new LocalRunnerSettingTab(this.app, this));
 
     // 注册视图类型与工厂,保证已持久化的 leaf 能正确反序列化
     this.registerView(RUNNER_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
@@ -46,6 +134,20 @@ export default class LocalRunnerPlugin extends Plugin {
         void this.activateView();
       },
     });
+    this.addCommand({
+      id: "open-settings",
+      name: "打开设置",
+      callback: () => {
+        void this.openSettings();
+      },
+    });
+  }
+
+  /** 打开插件设置页 */
+  async openSettings(): Promise<void> {
+    await this.app.setting.open();
+    // openTabById 不在类型中但运行时存在
+    (this.app.setting as any).openTabById(this.manifest.id);
   }
 
   /** 激活(或首次创建)侧边栏视图并置顶显示 */
@@ -63,12 +165,17 @@ export default class LocalRunnerPlugin extends Plugin {
     }
   }
 
+  async saveSettings(): Promise<void> {
+    await this.saveData({ processes: this.savedConfigs, settings: this.settings });
+  }
+
   private buildViewOptions(): ViewOptions {
     return {
       defaultCwd: this.getDefaultCwd(),
+      settings: this.settings,
       onSaveConfigs: (configs) => {
         this.savedConfigs = configs;
-        void this.saveData({ processes: configs });
+        void this.saveSettings();
       },
     };
   }

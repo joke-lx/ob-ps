@@ -27,7 +27,13 @@
   font-size: var(--font-ui-medium);
 }
 
-.runner-add-btn {
+.runner-header-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.runner-header-btn {
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -38,7 +44,7 @@
   color: var(--text-muted);
   flex-shrink: 0;
 }
-.runner-add-btn:hover {
+.runner-header-btn:hover {
   background: var(--interactive-hover);
   color: var(--text-normal);
 }
