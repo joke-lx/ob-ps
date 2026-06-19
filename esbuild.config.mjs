@@ -4,7 +4,7 @@
 
 import esbuild from "esbuild";
 import builtins from "builtin-modules";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,6 +43,11 @@ const vendorExternal = [
 
 // ---- 同步工具函数 ----
 
+/** 需要同步到 vault 的额外资源(相对项目根) */
+const extraResources = [
+  ".claude/skills/obsidian-repair-unresolved-links",
+];
+
 async function syncToVault() {
   if (!syncEnabled) return;
   try {
@@ -51,10 +56,26 @@ async function syncToVault() {
       copyFile(localOutFile, path.join(vaultPluginDir, "main.js")),
       copyFile(path.join(__dirname, "manifest.json"), path.join(vaultPluginDir, "manifest.json")),
       copyFile(path.join(__dirname, "styles.css"), path.join(vaultPluginDir, "styles.css")),
+      ...extraResources.map((rel) => {
+        const src = path.join(__dirname, rel);
+        const dst = path.join(vaultPluginDir, rel);
+        return copyDirRecursive(src, dst);
+      }),
     ]);
     console.log("[sync] synced to " + vaultPluginDir);
   } catch (err) {
     console.error("[sync] failed: " + err.message);
+  }
+}
+
+/** 递归复制目录(源不存在则静默跳过) */
+async function copyDirRecursive(src, dst) {
+  try {
+    await stat(src);
+    await mkdir(path.dirname(dst), { recursive: true });
+    await cp(src, dst, { recursive: true, force: true });
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
   }
 }
 

@@ -80,6 +80,7 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
     child = spawn(tab.command, {
       cwd: tab.cwd,
       shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env },
       windowsHide: true,
     });

@@ -1,4 +1,4 @@
-import { ItemView, Modal, Notice, Setting, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import {
   createTab,
   isRunning,
@@ -19,16 +19,33 @@ export interface ProcessConfig {
 
 // ---- 插件设置 ---------------------------------------------------------------
 
+/** 单条命令预设 */
+export interface CommandPreset {
+  name: string;
+  command: string;
+  cwd: string;
+}
+
+/** 命令组:一组相关的命令预设 */
+export interface CommandGroup {
+  id: string;
+  name: string;
+  presets: CommandPreset[];
+}
+
 export interface PluginSettings {
-  confirmBeforeDelete: boolean;
-  autoScrollOutput: boolean;
-  maxOutputChars: number;
+  /** 是否已将双链修复 skill 安装到仓库 */
+  repairLinksSkillInstalled: boolean;
+  /** 是否启用高亮双链样式 */
+  highlightWikilinks: boolean;
+  /** 用户定义的命令组,用于快捷填充新建表单 */
+  commandGroups: CommandGroup[];
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
-  confirmBeforeDelete: true,
-  autoScrollOutput: true,
-  maxOutputChars: 200_000,
+  repairLinksSkillInstalled: false,
+  highlightWikilinks: false,
+  commandGroups: [],
 };
 
 export interface ViewOptions {
@@ -72,7 +89,7 @@ export class RunnerView extends ItemView {
   }
 
   getIcon(): string {
-    return "terminal";
+    return "play";
   }
 
   constructor(leaf: WorkspaceLeaf, opts: ViewOptions) {
@@ -117,11 +134,6 @@ export class RunnerView extends ItemView {
     this.expandedIds.clear();
     this.outputElMap.clear();
     this.renderAll();
-  }
-
-  /** 更新已注入的设置(main.ts 在设置变更时调用) */
-  updateSettings(): void {
-    // 目前设置仅在交互时校验,无需重建 UI
   }
 
   // ---- UI Build -------------------------------------------------------------
@@ -269,7 +281,7 @@ export class RunnerView extends ItemView {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
     const forceScroll = this.expandScrollId === tab.id;
     el.setText(tab.output || "（无输出）");
-    if (this.opts.settings.autoScrollOutput && (forceScroll || nearBottom)) {
+    if (forceScroll || nearBottom) {
       el.scrollTop = el.scrollHeight;
     }
   }
@@ -332,20 +344,6 @@ export class RunnerView extends ItemView {
   }
 
   private deleteProcess(id: string): void {
-    // 设置支持确认弹窗
-    if (this.opts.settings.confirmBeforeDelete) {
-      const tab = this.tabs.find((t) => t.id === id);
-      if (!tab) return;
-      new ConfirmModal(this.app, `确认删除进程「${tab.name}」？`, () => {
-        this.doDeleteProcess(id);
-      }).open();
-      return;
-    }
-    this.doDeleteProcess(id);
-  }
-
-  /** 实际执行删除(跳过确认) */
-  private doDeleteProcess(id: string): void {
     const idx = this.tabs.findIndex((t) => t.id === id);
     if (idx === -1) return;
 
@@ -397,6 +395,7 @@ export class RunnerView extends ItemView {
   private renderForm(): void {
     this.formEl.empty();
     const isEdit = this.formMode === "edit";
+    const groups = this.opts.settings.commandGroups ?? [];
 
     const prefill: { name: string; command: string; cwd: string } = {
       name: "",
@@ -420,6 +419,48 @@ export class RunnerView extends ItemView {
 
     // 表单字段
     const fields = panel.createDiv({ cls: "runner-form-fields" });
+
+    // ---- 快捷命令组(仅新建模式且存在命令组时显示) ----
+    let groupSelectEl: HTMLSelectElement | null = null;
+    let presetSelectEl: HTMLSelectElement | null = null;
+
+    if (!isEdit && groups.length > 0) {
+      // 组选择
+      const groupFd = fields.createDiv({ cls: "runner-form-field" });
+      groupFd.createDiv({ cls: "runner-form-label", text: "快捷命令组" });
+      groupSelectEl = groupFd.createEl("select", { cls: "runner-form-select" });
+
+      const blankOpt = document.createElement("option");
+      blankOpt.value = "";
+      blankOpt.text = "（不选择）";
+      groupSelectEl.add(blankOpt);
+      for (const g of groups) {
+        const opt = document.createElement("option");
+        opt.value = g.id;
+        opt.text = g.name;
+        groupSelectEl.add(opt);
+      }
+
+      // 预设选择(选组后显示)
+      const presetFd = fields.createDiv({ cls: "runner-form-field" });
+      presetFd.createDiv({ cls: "runner-form-label", text: "命令预设" });
+      presetSelectEl = presetFd.createEl("select", { cls: "runner-form-select" });
+      presetSelectEl.disabled = true;
+      const noPresetOpt = document.createElement("option");
+      noPresetOpt.value = "";
+      noPresetOpt.text = "（请先选择命令组）";
+      presetSelectEl.add(noPresetOpt);
+
+      // 组切换时更新预设列表
+      groupSelectEl.addEventListener("change", () => {
+        this.populatePresetDropdown(groups, groupSelectEl!, presetSelectEl!, nameInput, cmdInput, cwdInput);
+      });
+
+      // 预设选择时填充字段
+      presetSelectEl.addEventListener("change", () => {
+        this.applySelectedPreset(groups, groupSelectEl!, presetSelectEl!, nameInput, cmdInput, cwdInput);
+      });
+    }
 
     // 名称
     const nameFd = fields.createDiv({ cls: "runner-form-field" });
@@ -483,6 +524,76 @@ export class RunnerView extends ItemView {
     }
   }
 
+  /** 根据选中的命令组刷新预设下拉列表 */
+  private populatePresetDropdown(
+    groups: CommandGroup[],
+    groupSelect: HTMLSelectElement,
+    presetSelect: HTMLSelectElement,
+    nameInput: HTMLInputElement,
+    cmdInput: HTMLInputElement,
+    cwdInput: HTMLInputElement,
+  ): void {
+    const gid = groupSelect.value;
+    presetSelect.innerHTML = "";
+    presetSelect.disabled = !gid;
+
+    if (!gid) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.text = "（请先选择命令组）";
+      presetSelect.add(opt);
+      return;
+    }
+
+    const group = groups.find((g) => g.id === gid);
+    if (!group || group.presets.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.text = "（该组无预设）";
+      presetSelect.add(opt);
+      return;
+    }
+
+    // 空白选项(允许手动输入)
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.text = "（手动输入）";
+    presetSelect.add(blank);
+
+    for (const p of group.presets) {
+      const opt = document.createElement("option");
+      opt.value = `${group.presets.indexOf(p)}`;
+      opt.text = `${p.name}  —  ${p.command}`;
+      presetSelect.add(opt);
+    }
+
+    // 默认选中第一个预设并填充
+    presetSelect.selectedIndex = 1; // 跳过空白选项
+    this.applySelectedPreset(groups, groupSelect, presetSelect, nameInput, cmdInput, cwdInput);
+  }
+
+  /** 根据选中的预设填充表单字段 */
+  private applySelectedPreset(
+    groups: CommandGroup[],
+    groupSelect: HTMLSelectElement,
+    presetSelect: HTMLSelectElement,
+    nameInput: HTMLInputElement,
+    cmdInput: HTMLInputElement,
+    cwdInput: HTMLInputElement,
+  ): void {
+    const gid = groupSelect.value;
+    const idx = parseInt(presetSelect.value, 10);
+    if (!gid || isNaN(idx)) return;
+
+    const group = groups.find((g) => g.id === gid);
+    if (!group || idx < 0 || idx >= group.presets.length) return;
+
+    const preset = group.presets[idx];
+    nameInput.value = preset.name;
+    cmdInput.value = preset.command;
+    cwdInput.value = preset.cwd || this.opts.defaultCwd;
+  }
+
   /** 提交表单 */
   private submitForm(nameRaw: string, cmdRaw: string, cwdRaw: string): void {
     const name = nameRaw.trim();
@@ -535,25 +646,5 @@ export class RunnerView extends ItemView {
     if (tab.status === "running") return "运行中";
     if (tab.status === "stopped") return "已停止";
     return `已退出 (${tab.exitCode ?? "?"})`;
-  }
-}
-
-/** 确认弹窗,替代已弃用的浏览器全局 confirm() */
-class ConfirmModal extends Modal {
-  constructor(
-    app: import("obsidian").App,
-    message: string,
-    private onConfirm: () => void,
-  ) {
-    super(app);
-    this.contentEl.createEl("p", { text: message });
-    new Setting(this.contentEl)
-      .addButton((b) => b.setButtonText("取消").onClick(() => this.close()))
-      .addButton((b) =>
-        b.setButtonText("确认").setCta().onClick(() => {
-          this.onConfirm();
-          this.close();
-        }),
-      );
   }
 }

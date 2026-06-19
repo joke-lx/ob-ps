@@ -1,13 +1,10 @@
-import {
-  FileSystemAdapter,
-  Plugin,
-  PluginSettingTab,
-  Setting,
-  WorkspaceLeaf,
-} from "obsidian";
+import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from "obsidian";
+import * as path from "path";
+import * as fs from "fs";
 import {
   RUNNER_VIEW_TYPE,
   RunnerView,
+  type CommandGroup,
   type PluginSettings,
   type ProcessConfig,
   type ViewOptions,
@@ -16,9 +13,9 @@ import {
 // ---- 插件设置 ---------------------------------------------------------------
 
 export const DEFAULT_SETTINGS: PluginSettings = {
-  confirmBeforeDelete: true,
-  autoScrollOutput: true,
-  maxOutputChars: 200_000,
+  repairLinksSkillInstalled: false,
+  highlightWikilinks: false,
+  commandGroups: [],
 };
 
 /** 编程方式跳转到设置标签页(内部 API) */
@@ -30,6 +27,90 @@ interface AppWithSetting {
 interface PluginData {
   processes: ProcessConfig[];
   settings?: PluginSettings;
+}
+
+// ---- 工具函数 ---------------------------------------------------------------
+
+const SKILL_NAME = "obsidian-repair-unresolved-links";
+
+/** 获取插件在 vault 中的安装目录(绝对路径) */
+function getPluginInstallDir(plugin: LocalRunnerPlugin): string {
+  const vault = plugin.getDefaultCwd();
+  const rel = plugin.manifest.dir;
+  if (rel) {
+    return path.join(vault, rel);
+  }
+  // fallback: vault 配置目录 + plugins/插件名
+  return path.join(vault, plugin.app.vault.configDir, "plugins", plugin.manifest.id);
+}
+
+/** 插件自带的 skill 源目录(位于插件安装目录下的 .claude/skills/) */
+function getSkillSourceDir(plugin: LocalRunnerPlugin): string {
+  return path.join(getPluginInstallDir(plugin), ".claude", "skills", SKILL_NAME);
+}
+
+/** 仓库目标的 .claude/skills 目录 */
+function getSkillDestDir(vaultPath: string): string {
+  return path.join(vaultPath, ".claude", "skills", SKILL_NAME);
+}
+
+/** 安装 skill: 将插件自带的 skill 目录复制到仓库 */
+function installSkill(plugin: LocalRunnerPlugin): boolean {
+  const vault = plugin.getDefaultCwd();
+  if (!vault) {
+    new Notice("无法获取 vault 路径");
+    return false;
+  }
+
+  const src = getSkillSourceDir(plugin);
+  const dest = getSkillDestDir(vault);
+
+  if (!fs.existsSync(src)) {
+    new Notice(`未找到 skill 源目录: ${src}`);
+    return false;
+  }
+
+  try {
+    // 如果目标已存在则先删除,保证覆盖
+    if (fs.existsSync(dest)) {
+      fs.rmSync(dest, { recursive: true, force: true });
+    }
+    // 确保父目录存在
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.cpSync(src, dest, { recursive: true });
+    new Notice("✅ 双链修复 skill 已安装到仓库");
+    return true;
+  } catch (err) {
+    new Notice(`❌ 安装 skill 失败: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/** 卸载 skill: 删除仓库中的 skill 目录 */
+function uninstallSkill(plugin: LocalRunnerPlugin): boolean {
+  const vault = plugin.getDefaultCwd();
+  if (!vault) return true;
+
+  const dest = getSkillDestDir(vault);
+
+  if (!fs.existsSync(dest)) {
+    return true;
+  }
+
+  try {
+    fs.rmSync(dest, { recursive: true, force: true });
+    new Notice("已移除双链修复 skill");
+    return true;
+  } catch (err) {
+    new Notice(`❌ 移除 skill 失败: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+let _groupIdCounter = 0;
+function nextGroupId(): string {
+  _groupIdCounter += 1;
+  return `g-${Date.now().toString(36)}-${_groupIdCounter}`;
 }
 
 // ---- 设置标签页 --------------------------------------------------------------
@@ -48,42 +129,215 @@ class LocalRunnerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("设置").setHeading();
 
+    // ---- 双链修复 skill ----
     new Setting(containerEl)
-      .setName("删除前确认")
-      .setDesc("点击删除进程图标时弹出确认提示")
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.confirmBeforeDelete)
-          .onChange(async (v) => {
-            this.plugin.settings.confirmBeforeDelete = v;
-            await this.plugin.saveSettings();
-          }),
-      );
+      .setName("添加双链修复 skill")
+      .setDesc(
+        createFragment((frag) => {
+          frag.appendText("将 ");
+          frag.createEl("code", { text: SKILL_NAME });
+          frag.appendText(" skill 安装到仓库 .claude/skills 目录,用于自动补全未解析的双链");
+        }),
+      )
+      .addToggle((t) => {
+        t.setValue(this.plugin.settings.repairLinksSkillInstalled).onChange(
+          (v) => {
+            if (v) {
+              const ok = installSkill(this.plugin);
+              this.plugin.settings.repairLinksSkillInstalled = ok;
+            } else {
+              uninstallSkill(this.plugin);
+              this.plugin.settings.repairLinksSkillInstalled = false;
+            }
+            void this.plugin.saveSettings();
+            t.setValue(this.plugin.settings.repairLinksSkillInstalled);
+          },
+        );
+      });
 
+    // ---- 高亮双链样式 ----
     new Setting(containerEl)
-      .setName("输出自动滚动")
-      .setDesc("新内容输出时自动滚动到控制台底部")
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.autoScrollOutput)
-          .onChange(async (v) => {
-            this.plugin.settings.autoScrollOutput = v;
-            await this.plugin.saveSettings();
-          }),
-      );
+      .setName("高亮双链样式")
+      .setDesc(
+        createFragment((frag) => {
+          frag.appendText("开启后,笔记中的内部双链（");
+          frag.createEl("code", { text: "[[" });
+          frag.appendText(" 链接");
+          frag.createEl("code", { text: "]]" });
+          frag.appendText("）将以高亮样式显示,更醒目美观");
+        }),
+      )
+      .addToggle((t) => {
+        t.setValue(this.plugin.settings.highlightWikilinks).onChange(
+          (v) => {
+            this.plugin.settings.highlightWikilinks = v;
+            this.plugin.applyWikilinkStyle();
+            void this.plugin.saveSettings();
+          },
+        );
+      });
 
-    new Setting(containerEl)
-      .setName("输出缓冲上限")
-      .setDesc("单个进程保留的最大输出字符数(越大越占内存)")
-      .addSlider((s) =>
-        s
-          .setLimits(10_000, 500_000, 10_000)
-          .setValue(this.plugin.settings.maxOutputChars)
-          .onChange(async (v) => {
-            this.plugin.settings.maxOutputChars = v;
-            await this.plugin.saveSettings();
-          }),
-      );
+    // ---- 命令组管理 ----
+    new Setting(containerEl).setName("命令组管理").setHeading();
+    containerEl.createDiv({
+      cls: "setting-item-description",
+      text: "定义快捷命令组,新建进程时可通过下拉列表快速填充命令",
+    });
+
+    const groups = this.plugin.settings.commandGroups;
+    for (let gi = 0; gi < groups.length; gi++) {
+      this.renderGroupEditor(groups, gi);
+    }
+
+    new Setting(containerEl).addButton((b) =>
+      b
+        .setButtonText("＋ 添加命令组")
+        .setCta()
+        .onClick(() => {
+          groups.push({ id: nextGroupId(), name: "新命令组", presets: [] });
+          void this.plugin.saveSettings().then(() => this.refreshDisplay());
+        }),
+    );
+  }
+
+  /** 刷新设置 UI(display 已弃用,用此方法统一包装) */
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
+  private refreshDisplay(): void { this.display(); }
+
+  /** 渲染单个命令组的编辑器 */
+  private renderGroupEditor(groups: CommandGroup[], gi: number): void {
+    const { containerEl } = this;
+    const group = groups[gi];
+
+    const wrap = containerEl.createDiv({ cls: "setting-group-card" });
+
+    // ---- 组头: 名称 + 操作按钮 ----
+    const headerRow = wrap.createDiv({ cls: "setting-group-header" });
+
+    const nameInput = headerRow.createEl("input", {
+      cls: "setting-group-name-input",
+      attr: { placeholder: "组名称,如 dev server" },
+    });
+    nameInput.value = group.name;
+    nameInput.addEventListener("change", () => {
+      group.name = nameInput.value;
+      void this.plugin.saveSettings();
+    });
+
+    const btnRow = headerRow.createDiv({ cls: "setting-group-actions" });
+
+    if (gi > 0) {
+      const upBtn = btnRow.createEl("button", {
+        cls: "setting-group-btn",
+        text: "↑",
+        attr: { title: "上移" },
+      });
+      upBtn.addEventListener("click", () => {
+        [groups[gi], groups[gi - 1]] = [groups[gi - 1], groups[gi]];
+        void this.plugin.saveSettings().then(() => this.refreshDisplay());
+      });
+    }
+    if (gi < groups.length - 1) {
+      const downBtn = btnRow.createEl("button", {
+        cls: "setting-group-btn",
+        text: "↓",
+        attr: { title: "下移" },
+      });
+      downBtn.addEventListener("click", () => {
+        [groups[gi], groups[gi + 1]] = [groups[gi + 1], groups[gi]];
+        void this.plugin.saveSettings().then(() => this.refreshDisplay());
+      });
+    }
+
+    const delBtn = btnRow.createEl("button", {
+      cls: "setting-group-btn is-danger",
+      text: "✕",
+      attr: { title: "删除组" },
+    });
+    delBtn.addEventListener("click", () => {
+      groups.splice(gi, 1);
+      void this.plugin.saveSettings().then(() => this.refreshDisplay());
+    });
+
+    // ---- 预设列表 ----
+    const presetsWrap = wrap.createDiv({ cls: "setting-presets" });
+    for (let pi = 0; pi < group.presets.length; pi++) {
+      this.renderPresetEditor(groups, gi, pi, presetsWrap);
+    }
+
+    // 添加预设按钮
+    const addPresetBtn = wrap.createEl("button", {
+      cls: "setting-group-btn is-add",
+      text: "＋ 添加命令",
+      attr: { title: "添加命令预设" },
+    });
+    addPresetBtn.addEventListener("click", () => {
+      group.presets.push({ name: "", command: "", cwd: "" });
+      void this.plugin.saveSettings().then(() => this.refreshDisplay());
+    });
+  }
+
+  /** 渲染单条命令预设的编辑器 */
+  private renderPresetEditor(
+    groups: CommandGroup[],
+    gi: number,
+    pi: number,
+    wrap: HTMLElement,
+  ): void {
+    const preset = groups[gi].presets[pi];
+
+    const row = wrap.createDiv({ cls: "setting-preset-row" });
+
+    // 名
+    const nameCol = row.createDiv({ cls: "setting-preset-col" });
+    nameCol.createDiv({ cls: "setting-preset-label", text: "名称" });
+    const nameInput = nameCol.createEl("input", {
+      cls: "setting-preset-input",
+      attr: { placeholder: "显示名称" },
+    });
+    nameInput.value = preset.name;
+    nameInput.addEventListener("change", () => {
+      preset.name = nameInput.value;
+      void this.plugin.saveSettings();
+    });
+
+    // 命令
+    const cmdCol = row.createDiv({ cls: "setting-preset-col is-grow" });
+    cmdCol.createDiv({ cls: "setting-preset-label", text: "命令" });
+    const cmdInput = cmdCol.createEl("input", {
+      cls: "setting-preset-input is-mono",
+      attr: { placeholder: "npm run dev" },
+    });
+    cmdInput.value = preset.command;
+    cmdInput.addEventListener("change", () => {
+      preset.command = cmdInput.value;
+      void this.plugin.saveSettings();
+    });
+
+    // 工作目录
+    const cwdCol = row.createDiv({ cls: "setting-preset-col is-grow" });
+    cwdCol.createDiv({ cls: "setting-preset-label", text: "工作目录" });
+    const cwdInput = cwdCol.createEl("input", {
+      cls: "setting-preset-input is-mono",
+      attr: { placeholder: "默认为 vault 根目录" },
+    });
+    cwdInput.value = preset.cwd;
+    cwdInput.addEventListener("change", () => {
+      preset.cwd = cwdInput.value;
+      void this.plugin.saveSettings();
+    });
+
+    // 删除
+    const actCol = row.createDiv({ cls: "setting-preset-col is-action" });
+    const delBtn = actCol.createEl("button", {
+      cls: "setting-group-btn is-danger",
+      text: "✕",
+      attr: { title: "删除此预设" },
+    });
+    delBtn.addEventListener("click", () => {
+      groups[gi].presets.splice(pi, 1);
+      void this.plugin.saveSettings().then(() => this.refreshDisplay());
+    });
   }
 }
 
@@ -106,6 +360,18 @@ export default class LocalRunnerPlugin extends Plugin {
     const data = (await this.loadData()) as PluginData | null;
     this.savedConfigs = data?.processes ?? [];
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+
+    // 如果已安装但目标不存在,自动修正状态
+    if (this.settings.repairLinksSkillInstalled) {
+      const vault = this.getDefaultCwd();
+      if (vault && !fs.existsSync(getSkillDestDir(vault))) {
+        this.settings.repairLinksSkillInstalled = false;
+        void this.saveSettings();
+      }
+    }
+
+    // 应用高亮双链样式
+    this.applyWikilinkStyle();
 
     // 注册设置标签页
     this.addSettingTab(new LocalRunnerSettingTab(this.app, this));
@@ -177,8 +443,17 @@ export default class LocalRunnerPlugin extends Plugin {
   }
 
   /** 取 vault 根目录作为命令的默认工作目录 */
-  private getDefaultCwd(): string {
+  getDefaultCwd(): string {
     const adapter = this.app.vault.adapter;
     return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
+  }
+
+  /** 根据设置开关添加/移除高亮双链 body class */
+  applyWikilinkStyle(): void {
+    if (this.settings.highlightWikilinks) {
+      document.body.addClass("ob-ps-hl-wl");
+    } else {
+      document.body.removeClass("ob-ps-hl-wl");
+    }
   }
 }

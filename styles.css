@@ -326,6 +326,27 @@
   border-color: var(--interactive-accent);
 }
 
+.runner-form-select {
+  width: 100%;
+  padding: 5px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+.runner-form-select:focus {
+  border-color: var(--interactive-accent);
+}
+.runner-form-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---- Action buttons ---- */
 
 .runner-form-actions {
@@ -362,4 +383,237 @@
 
 .runner-form-btn.is-cta:hover {
   opacity: 0.85;
+}
+
+/* ===== Settings: Command Group Editor ===== */
+
+/* 单个命令组卡片 */
+.setting-group-card {
+  margin: 10px 0;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+/* 组标题行 */
+.setting-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.setting-group-name-input {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  outline: none;
+}
+.setting-group-name-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.setting-group-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.setting-group-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+.setting-group-btn:hover {
+  background: var(--interactive-hover);
+  color: var(--text-normal);
+}
+.setting-group-btn.is-danger:hover {
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+  border-color: #f44336;
+}
+.setting-group-btn.is-add {
+  margin-top: 8px;
+  width: 100%;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+.setting-group-btn.is-add:hover {
+  background: var(--interactive-hover);
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* 预设列表容器 */
+.setting-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 单条命令预设行 */
+.setting-preset-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.setting-preset-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.setting-preset-col.is-grow {
+  flex: 2;
+}
+.setting-preset-col.is-action {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.setting-preset-label {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  padding-left: 2px;
+}
+
+.setting-preset-input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  outline: none;
+  box-sizing: border-box;
+}
+.setting-preset-input:focus {
+  border-color: var(--interactive-accent);
+}
+.setting-preset-input.is-mono {
+  font-family: var(--font-monospace);
+}
+
+/* ===== Highlighted Wikilinks ===============================================
+ * 温润纸墨 · 高亮双链样式
+ * 开启开关后,笔记中的 [[内部链接]] 以半透明强调色渐变高亮显示。
+ * 灵感:手帐注释 + 精装书脚注 —— 醒目而不刺眼,优雅而不张扬。
+ *
+ * 控制 body class: .ob-ps-hl-wl
+ * ========================================================================== */
+
+/* ---- Reading Mode (阅读视图) ---- */
+body.ob-ps-hl-wl .internal-link {
+  /* 柔和高亮底纹:上淡下浓,模拟荧光笔划过纸面的渐变感 */
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--interactive-accent) 6%, transparent) 0%,
+    color-mix(in srgb, var(--interactive-accent) 16%, transparent) 100%
+  );
+  /* 底部细边线:似下划线,比传统下划线更精致 */
+  border-bottom: 1.5px solid
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+  border-radius: 3px 3px 1px 1px;
+  padding: 0 5px;
+  margin: 0 -1px;
+
+  /* 字重略微加强,增强辨识度 */
+  font-weight: 500;
+
+  /* 去除 Obsidian 默认下划线 */
+  text-decoration: none !important;
+
+  /* 顺畅过渡:开关 / 悬停皆有动画 */
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 悬停:底纹加深 + 边线饱和 + 微光晕 */
+body.ob-ps-hl-wl .internal-link:hover {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--interactive-accent) 12%, transparent) 0%,
+    color-mix(in srgb, var(--interactive-accent) 26%, transparent) 100%
+  );
+  border-bottom-color: var(--interactive-accent);
+  box-shadow:
+    0 1px 6px color-mix(in srgb, var(--interactive-accent) 18%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+}
+
+/* ---- 未创建页面(虚线表示)——待填补的空白 ---- */
+body.ob-ps-hl-wl .internal-link.is-unresolved {
+  background: transparent;
+  border-bottom: 1.5px dashed
+    color-mix(in srgb, var(--text-muted) 35%, transparent);
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  border-bottom-color: var(--text-muted);
+  opacity: 1;
+  box-shadow: none;
+}
+
+/* ---- Live Preview (实时编辑 / CM6) ---- */
+body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--interactive-accent) 6%, transparent) 0%,
+    color-mix(in srgb, var(--interactive-accent) 16%, transparent) 100%
+  );
+  border-bottom: 1.5px solid
+    color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+  border-radius: 3px 3px 1px 1px;
+  font-weight: 500;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* CM6 中的 un-resolved 链接 */
+body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
+  background: transparent;
+  border-bottom: 1.5px dashed
+    color-mix(in srgb, var(--text-muted) 35%, transparent);
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+/* 当光标停留在 CM6 链接上时加深 */
+body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline:hover,
+body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .cm-underline {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--interactive-accent) 12%, transparent) 0%,
+    color-mix(in srgb, var(--interactive-accent) 26%, transparent) 100%
+  );
+  border-bottom-color: var(--interactive-accent);
+}
+
+/* ---- 折叠标题中的二级链接 ---- */
+body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline .cm-link-text {
+  /* 确保折叠标题场景兼容 */
+  background: inherit;
 }
