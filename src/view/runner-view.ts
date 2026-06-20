@@ -196,7 +196,7 @@ export class RunnerView extends ItemView {
     for (const tab of this.tabs) {
       // edit 模式下,被编辑的标签页由表单占据,列表中跳过
       if (this.formMode === "edit" && tab.id === this.editingTabId) continue;
-      const { item, outputEl } = renderProcessItem(this.listEl, tab, {
+      const { outputEl } = renderProcessItem(this.listEl, tab, {
         expanded: this.expandedIds.has(tab.id),
         onCardClick: (t) => this.toggleProcess(t),
         onToggleExpand: (id) => this.toggleExpand(id),
@@ -204,8 +204,6 @@ export class RunnerView extends ItemView {
         onDelete: (id) => this.deleteProcess(id),
       });
       this.outputElMap.set(tab.id, outputEl);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _ = item;
     }
   }
 

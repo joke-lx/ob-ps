@@ -174,15 +174,13 @@ function renderGroupSelect(
   fd.createDiv({ cls: "runner-form-label", text: "快捷命令组" });
   const sel = fd.createEl("select", { cls: "runner-form-select" });
 
-  const blank = document.createElement("option");
+  const blank = sel.createEl("option");
   blank.value = "";
   blank.text = "（不选择）";
-  sel.add(blank);
   for (const g of groups) {
-    const opt = document.createElement("option");
+    const opt = sel.createEl("option");
     opt.value = g.id;
     opt.text = g.name;
-    sel.add(opt);
   }
   return sel;
 }
@@ -193,10 +191,9 @@ function renderPresetSelect(fields: HTMLElement): HTMLSelectElement {
   fd.createDiv({ cls: "runner-form-label", text: "命令预设" });
   const sel = fd.createEl("select", { cls: "runner-form-select" });
   sel.disabled = true;
-  const noGroup = document.createElement("option");
+  const noGroup = sel.createEl("option");
   noGroup.value = "";
   noGroup.text = "（请先选择命令组）";
-  sel.add(noGroup);
   return sel;
 }
 
@@ -250,34 +247,30 @@ function populatePresetDropdown(
   presetSelect.disabled = !gid;
 
   if (!gid) {
-    const opt = document.createElement("option");
+    const opt = presetSelect.createEl("option");
     opt.value = "";
     opt.text = "（请先选择命令组）";
-    presetSelect.add(opt);
     return;
   }
 
   const group = groups.find((g) => g.id === gid);
   if (!group || group.presets.length === 0) {
-    const opt = document.createElement("option");
+    const opt = presetSelect.createEl("option");
     opt.value = "";
     opt.text = "（该组无预设）";
-    presetSelect.add(opt);
     return;
   }
 
   // 空白选项(允许手动输入)
-  const blank = document.createElement("option");
+  const blank = presetSelect.createEl("option");
   blank.value = "";
   blank.text = "（手动输入）";
-  presetSelect.add(blank);
 
   for (let i = 0; i < group.presets.length; i++) {
     const p = group.presets[i];
-    const opt = document.createElement("option");
+    const opt = presetSelect.createEl("option");
     opt.value = String(i);
     opt.text = `${p.name}  —  ${p.command}`;
-    presetSelect.add(opt);
   }
 
   // 默认选中第一个预设并填充

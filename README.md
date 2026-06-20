@@ -1,6 +1,103 @@
 # Local Runner
 
+Run local shell commands from an Obsidian sidebar tab with live, per-process output. Each command gets its own card with a status indicator and expandable log — perfect for keeping `npm run dev` or `npx vite` running while you write notes.
+
 在 Obsidian 侧边栏管理本地 shell 进程并实时查看输出。每个进程一条记录，带状态指示灯、可展开日志，支持命令组快捷填充 —— 适合边写文档边跑 `npm run dev` / `npx vite` / 任意 CLI 工具。
+
+## Features
+
+- 🖥️ **Multiple processes in parallel** — run several commands at once, each with its own output panel
+- 📺 **Sidebar integration** — watch logs without leaving Obsidian
+- 🟢 **Status indicator** — running / stopped / exited (with exit code) at a glance
+- ▶️ **One-click start & stop** — click the process card to toggle
+- 📝 **Inline form** — create / edit a process (name / command / working directory); `Enter` to submit, `Esc` to cancel
+- 🔁 **Live streaming output** — stdout / stderr merged, auto-scroll to bottom
+- 📂 **Expand / collapse** — each process log can be expanded independently
+- 💾 **Persisted** — process configurations and settings survive Obsidian restarts
+- ✏️ **Edit / delete** — change commands or clean up anytime
+- 🗂️ **Command groups** — define reusable presets in settings; the new-process form offers a two-level "group → preset" dropdown to fill the form with one click
+- 🔧 **Wikilink-repair skill installer** — copy the bundled `obsidian-repair-unresolved-links` skill to your vault's `.claude/skills/` with one toggle
+- 🎨 **Highlighted wikilinks** — give internal `[[]]` links a more readable style
+- 🪟 **Windows process tree kill** — `taskkill /T /F` so dev servers don't keep your port
+- 🎯 **ANSI stripped** — output is plain text, capped at 200k chars to bound memory
+
+## Installation
+
+### Option 1: From the Obsidian Community Plugin store (after publication)
+
+1. Open Obsidian → **Settings → Community plugins → Browse**
+2. Search for `Local Runner`
+3. Click **Install**, then **Enable**
+
+### Option 2: From a GitHub Release
+
+1. Download the latest release from the [Releases page](https://github.com/joke-lx/ob-ps/releases)
+2. In your vault, create the folder `.obsidian/plugins/local-runner/`
+3. Copy `main.js`, `manifest.json`, and `styles.css` into it (or unzip the release zip)
+4. In Obsidian → **Settings → Community plugins**, reload, and enable **Local Runner**
+
+## Usage
+
+1. Open the sidebar: command palette (`Ctrl/Cmd + P`) → "Open local process sidebar", or click the terminal icon in the left ribbon
+2. Create a process: click **＋** in the sidebar header, fill in name / command / working directory → `Enter` (or click "Run")
+3. Start / stop a process: click the process **card** to toggle
+4. View output: click the **▾** on the right of the card to expand the log
+5. Edit / delete: click the ✏ / × on the right of the card
+6. Quick fill: when creating, pick a group in the "Command group" dropdown, then a preset — the form auto-fills
+
+## Settings
+
+Open **Settings → Local Runner**:
+
+- **Command groups** — add / remove command groups and presets, reorder via ↑ / ↓
+- **Install wikilink-repair skill** — toggle: install the skill to / remove it from your vault
+- **Highlight wikilinks** — toggle: highlight internal wikilinks in your notes
+
+## Security
+
+- This plugin launches commands via `child_process.spawn` with `shell: true`, equivalent to typing them in a terminal — pipes, arguments, and shell syntax are all supported
+- **Do not** use it to run untrusted commands or parse untrusted input (same risk as a terminal)
+- The default working directory is the vault root; child processes inherit Obsidian's environment
+- On Windows, stopping a process kills the whole process tree; on other platforms only the direct child receives `SIGTERM`
+
+## Compatibility
+
+- **Desktop only** (depends on Node's `child_process`; mobile sandboxes do not provide it)
+- Obsidian ≥ 1.7.2
+
+## Development
+
+```bash
+npm install          # install dependencies
+npm run dev          # watch mode, rebuilds on change
+npm run build        # type check + production build; output = main.js at repo root
+npm run lint         # eslint static check
+```
+
+In dev mode, `main.js` / `manifest.json` / `styles.css` and `.claude/skills/obsidian-repair-unresolved-links` are synced to the vault plugin directory for hot reload. Default target is `../<vault>/.obsidian/plugins/local-runner/`. Override with the environment variable:
+
+```bash
+LOCAL_RUNNER_VAULT=/path/to/vault/.obsidian/plugins/local-runner npm run dev
+```
+
+Production mode only writes to the repo root and lets CI handle packaging.
+
+## Release
+
+Fully automated: every push to `main` runs GitHub Actions, which will
+
+1. Auto-bump the patch version in `manifest.json` and sync `versions.json`
+2. Type-check and build
+3. Package `local-runner-<version>.zip` (containing `main.js` / `manifest.json` / `styles.css`)
+4. Commit the version bump (with `[skip ci]` to avoid loops), tag it, and create a GitHub Release
+
+So for day-to-day development you only need `git push origin main` — no manual version bumps or tags.
+
+> Submitting to the Obsidian community store is a separate step: open a PR against [obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases) and add an entry to `community-plugins.json`.
+
+## License
+
+ISC — see [LICENSE](LICENSE).
 
 ## 功能
 

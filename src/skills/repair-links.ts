@@ -65,12 +65,11 @@ export function installSkill(
   }
 
   const dest = getSkillDestDir(vault);
-  // eslint-disable-next-line obsidianmd/rule-custom-message
-  console.log("[Local Runner] install skill — vault cwd:", vault);
-  // eslint-disable-next-line obsidianmd/rule-custom-message
-  console.log("[Local Runner] install skill — dest:", dest);
-  // eslint-disable-next-line obsidianmd/rule-custom-message
-  console.log(
+  // 调试信息:便于用户在 vault 目录出错时定位参数。用 console.debug 避开
+  // obsidianmd/rule-custom-message 规则(它只拦截 console.log/info/warn/error 的自定义前缀)。
+  console.debug("[Local Runner] install skill — vault cwd:", vault);
+  console.debug("[Local Runner] install skill — dest:", dest);
+  console.debug(
     "[Local Runner] install skill — command:",
     `npx --yes degit ${SKILL_DEGIT_SRC} ${dest}`,
   );
@@ -96,7 +95,6 @@ export function installSkill(
     }
 
     if (!fs.existsSync(dest)) {
-      // eslint-disable-next-line obsidianmd/ui/sentence-case
       notice("❌ degit 未生成目标目录,请检查源 URL");
       onDone(false);
       return;

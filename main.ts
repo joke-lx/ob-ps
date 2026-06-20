@@ -67,7 +67,7 @@ export default class LocalRunnerPlugin extends Plugin {
     this.reconcileInstalledFlag();
 
     // 5. 应用高亮双链样式
-    applyWikilinkStyle(this.settings, document);
+    applyWikilinkStyle(this.settings);
 
     // 6. 注册设置标签页
     this.addSettingTab(new LocalRunnerSettingTab(this.app, this));
@@ -147,7 +147,7 @@ export default class LocalRunnerPlugin extends Plugin {
 
   /** 根据设置开关添加/移除高亮双链 body class */
   applyWikilinkStyle(): void {
-    applyWikilinkStyle(this.settings, document);
+    applyWikilinkStyle(this.settings);
   }
 
   // ---- 内部辅助 --------------------------------------------------------------

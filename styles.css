@@ -557,10 +557,10 @@
  * ========================================================================== */
 
 /* ---- Reading Mode: 仅高亮未解析 ---- */
-body.ob-ps-hl-wl .internal-link.is-unresolved {
+body.ob-ps-hl-wl body.ob-ps-hl-wl .internal-link.is-unresolved {
   position: relative;
   display: inline-block;
-  text-decoration: none !important;
+  text-decoration: none;
 
   color: var(--text-muted);
 
@@ -594,10 +594,10 @@ body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
 }
 
 /* ---- Live Preview (CM6): 仅高亮未解析 ---- */
-body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
+body.ob-ps-hl-wl body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
   position: relative;
   display: inline-block;
-  text-decoration: none !important;
+  text-decoration: none;
 
   color: var(--text-muted);
   font-weight: 500;

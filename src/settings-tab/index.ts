@@ -70,9 +70,14 @@ export class LocalRunnerSettingTab extends PluginSettingTab {
     });
   }
 
-  /** 刷新设置 UI(display 已弃用,用此方法统一包装) */
+  /**
+   * 刷新设置 UI。
+   * 父类 `PluginSettingTab.display()` 虽在 1.13+ 标记为 deprecated,
+   * 但新接口 `getSettingDefinitions()` 需要将所有设置项重写为声明式结构,
+   * 工作量超出本次重构范围;此处沿用旧 API 以保持行为不变。
+   */
   private refreshDisplay(): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- 父类抽象方法,无替代
     this.display();
   }
 }

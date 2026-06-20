@@ -3,7 +3,7 @@
  */
 
 import esbuild from "esbuild";
-import builtins from "builtin-modules";
+import { builtinModules } from "node:module";
 import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,7 +63,7 @@ async function syncToVault() {
 const context = await esbuild.context({
   entryPoints: ["main.ts"],
   bundle: true,
-  external: [...vendorExternal, ...builtins],
+  external: [...vendorExternal, ...builtinModules],
   format: "cjs",
   target: "es2018",
   logLevel: "info",
