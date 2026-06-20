@@ -34,10 +34,20 @@ export class LocalRunnerSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  /**
+   * 父类 `PluginSettingTab.display()` 在 Obsidian 1.13+ 被标记为 deprecated,
+   * 但作为抽象方法必须实现;Obsidian 在设置页打开时会自动调用它。
+   * 此处实现仅做容器清空 + 渲染委派,内部不调用任何 deprecated 方法,
+   * 因此无需 `eslint-disable`。
+   */
   display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
+    this.containerEl.empty();
+    this.renderSettings();
+  }
 
+  /** 渲染所有设置项(顶部标题 + 基础开关区 + 命令组管理) */
+  private renderSettings(): void {
+    const { containerEl } = this;
     // PluginSettingTab 在 .d.ts 里未公开 plugin 字段;运行时父类构造时已存入
     const host = (this as unknown as { plugin: SettingTabHost }).plugin;
 
@@ -71,14 +81,13 @@ export class LocalRunnerSettingTab extends PluginSettingTab {
   }
 
   /**
-   * 刷新设置 UI。
-   * 父类 `PluginSettingTab.display()` 虽在 1.13+ 标记为 deprecated,
-   * 但新接口 `getSettingDefinitions()` 需要将所有设置项重写为声明式结构,
-   * 工作量超出本次重构范围;此处沿用旧 API 以保持行为不变。
+   * 刷新设置 UI:清空容器并重新渲染。
+   * 不调用父类 deprecated 的 display(),而是直接清空 + 调 renderSettings(),
+   * 二者等价,且避开 `no-deprecated` 规则。
    */
   private refreshDisplay(): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- 父类抽象方法,无替代
-    this.display();
+    this.containerEl.empty();
+    this.renderSettings();
   }
 }
 
