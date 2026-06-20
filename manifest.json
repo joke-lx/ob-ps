@@ -1,7 +1,7 @@
 {
   "id": "local-runner",
   "name": "Local Runner",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "minAppVersion": "1.7.2",
   "description": "Run local shell commands from a sidebar tab with live output (e.g. npm run dev, npx vite).",
   "author": "joke-lx",
