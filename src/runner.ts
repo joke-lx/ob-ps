@@ -6,7 +6,17 @@ import { ChildProcess, spawn } from "child_process";
  * - exited:进程自行结束(已记录退出码)
  * - stopped:用户手动终止
  */
-export type RunnerStatus = "running" | "exited" | "stopped";
+export type RunnerStatus = "running" | "exited-ok" | "exited-err" | "stopped";
+
+/**
+ * 进程退出码的语义判断
+ * - 0 视为成功
+ * - null(信号量异常退出)或非 0 视为失败
+ */
+export function isSuccessExit(code: number | null, signal: NodeJS.Signals | null): boolean {
+  if (code === 0) return true;
+  return false;
+}
 
 /**
  * 单条命令标签页的数据模型。
@@ -86,7 +96,7 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
     });
   } catch (err) {
     appendOutput(tab, `\n[启动失败] ${(err as Error).message}\n`);
-    tab.status = "exited";
+    tab.status = "exited-err";
     tab.exitCode = -1;
     onChange();
     return;
@@ -106,18 +116,19 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
   });
   child.on("error", (err: Error) => {
     appendOutput(tab, `\n[错误] ${err.message}\n`);
-    tab.status = "exited";
+    tab.status = "exited-err";
     tab.exitCode = -1;
     tab.child = null;
     onChange();
   });
-  child.on("close", (code: number | null) => {
-    // 避免 stopProcess 已设置 "stopped" 后被 close 覆盖为 "exited"
+  child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+    // 避免 stopProcess 已设置 "stopped" 后被 close 覆盖为 exited
     if (tab.status !== "stopped") {
-      tab.status = "exited";
+      tab.status = isSuccessExit(code, signal) ? "exited-ok" : "exited-err";
       tab.exitCode = code;
       tab.child = null;
-      appendOutput(tab, `\n[进程退出,代码 ${code}]\n`);
+      const reason = signal ? `信号 ${signal}` : `代码 ${code}`;
+      appendOutput(tab, `\n[进程退出,${reason}]\n`);
     } else {
       tab.child = null;
     }

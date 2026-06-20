@@ -95,22 +95,31 @@
   transform: scale(0.99);
 }
 
-/* 运行中:绿色光晕 */
+/* 运行中:黄色光晕 */
 .runner-btn-card.is-running {
-  border-color: #4caf50;
-  background: rgba(76, 175, 80, 0.08);
+  border-color: #fbc02d;
+  background: rgba(251, 192, 45, 0.08);
 }
 .runner-btn-card.is-running:hover {
-  background: rgba(76, 175, 80, 0.15);
+  background: rgba(251, 192, 45, 0.15);
 }
 
-/* 已退出:橙色 */
-.runner-btn-card.is-exited {
-  border-color: #ff9800;
-  background: rgba(255, 152, 0, 0.06);
+/* 已成功退出(exit 0):绿色 */
+.runner-btn-card.is-exited-ok {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.06);
 }
-.runner-btn-card.is-exited:hover {
-  background: rgba(255, 152, 0, 0.12);
+.runner-btn-card.is-exited-ok:hover {
+  background: rgba(76, 175, 80, 0.12);
+}
+
+/* 信号量异常退出(非 0):红色 */
+.runner-btn-card.is-exited-err {
+  border-color: #f44336;
+  background: rgba(244, 67, 54, 0.06);
+}
+.runner-btn-card.is-exited-err:hover {
+  background: rgba(244, 67, 54, 0.12);
 }
 
 /* ---- 卡片左:指示灯 + 名称 ---- */
@@ -130,14 +139,17 @@
   flex-shrink: 0;
 }
 .runner-dot.is-running {
-  background: #4caf50;
-  box-shadow: 0 0 6px #4caf50;
+  background: #fbc02d;
+  box-shadow: 0 0 6px #fbc02d;
 }
 .runner-dot.is-stopped {
   background: var(--text-faint);
 }
-.runner-dot.is-exited {
-  background: #ff9800;
+.runner-dot.is-exited-ok {
+  background: #4caf50;
+}
+.runner-dot.is-exited-err {
+  background: #f44336;
 }
 
 /* 自定义名称(主标签,加粗突出) */
@@ -208,10 +220,13 @@
   color: var(--text-muted);
 }
 .runner-status-text.is-running {
+  color: #fbc02d;
+}
+.runner-status-text.is-exited-ok {
   color: #4caf50;
 }
-.runner-status-text.is-exited {
-  color: #ff9800;
+.runner-status-text.is-exited-err {
+  color: #f44336;
 }
 
 /* ===== Expanded output area ===== */
@@ -531,82 +546,38 @@
 }
 
 /* ===== Highlighted Wikilinks ===============================================
- * 静谧辉煌 · 极简克制设计
+ * 仅高亮未解析的双链 — 解析成功的链接保持 Obsidian 原生外观不动。
  *
  * 设计哲学:
- * - 不破坏阅读节奏 — 不是色块,不是按钮
- * - 文字本身就是强调色 — 让链接的"高亮"体现在字色本身
- * - 顶部细线下划线 — 偏现代的"反传统"细节
- * - 微妙的内嵌背景 — 仅有4%饱和度,若有若无
- * - 悬停时:背景加深 + 细微lift + 文字色增强
- *
- * 灵感来源:Vercel/Linear 等顶级工程品牌
+ * - 不破坏成功链接的阅读节奏
+ * - 未解析的链接是"异常"状态,需要用信号色突出(细虚线下划线)
+ * - hover 时恢复完整文字色 + 加深下划线,提示"点击可创建"
  *
  * 控制 body class: .ob-ps-hl-wl
  * ========================================================================== */
 
-/* ---- Reading Mode (阅读视图) ---- */
-body.ob-ps-hl-wl .internal-link {
+/* ---- Reading Mode: 仅高亮未解析 ---- */
+body.ob-ps-hl-wl .internal-link.is-unresolved {
   position: relative;
   display: inline-block;
   text-decoration: none !important;
 
-  /* 文字颜色本身就是强调色 — 这是核心 */
-  color: var(--interactive-accent);
-
-  /* 字重略加,但不夸张 */
-  font-weight: 500;
-
-  /* 几乎透明的背景,只有细节点缀 */
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 88%,
-    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 88%,
-    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 96%,
-    transparent 96%
-  );
-
-  /* 顶部细线 — 模拟上划线,但从底部开始,创造"下沉"感 */
-  border-radius: 2px;
-  padding: 1px 5px;
-  margin: 0 -2px;
-
-  /* 流畅的过渡 */
-  transition: all 0.18s ease;
-}
-
-/* 悬停:精细的细节强化 */
-body.ob-ps-hl-wl .internal-link:hover {
-  /* 背景渐变下移,创造下划线"长出"的感觉 */
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 84%,
-    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 84%,
-    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 94%,
-    transparent 94%
-  );
-
-  /* 文字色加深 */
-  filter: brightness(0.92) saturate(1.1);
-}
-
-/* ---- 未创建页面:细致虚线下划线 ---- */
-body.ob-ps-hl-wl .internal-link.is-unresolved {
   color: var(--text-muted);
 
   background: linear-gradient(
     to bottom,
     transparent 0%,
     transparent 88%,
-    color-mix(in srgb, var(--text-muted) 35%, transparent) 88%,
-    color-mix(in srgb, var(--text-muted) 35%, transparent) 96%,
+    color-mix(in srgb, var(--text-accent) 35%, transparent) 88%,
+    color-mix(in srgb, var(--text-accent) 35%, transparent) 96%,
     transparent 96%
   );
 
-  font-weight: 400;
-  opacity: 0.85;
+  border-radius: 2px;
+  padding: 1px 5px;
+  margin: 0 -2px;
+  font-weight: 500;
+  transition: all 0.18s ease;
 }
 
 body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
@@ -615,64 +586,47 @@ body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
     to bottom,
     transparent 0%,
     transparent 84%,
-    color-mix(in srgb, var(--text-muted) 55%, transparent) 84%,
-    color-mix(in srgb, var(--text-muted) 55%, transparent) 94%,
+    color-mix(in srgb, var(--text-accent) 55%, transparent) 84%,
+    color-mix(in srgb, var(--text-accent) 55%, transparent) 94%,
     transparent 94%
   );
-  opacity: 1;
+  filter: brightness(0.95) saturate(1.1);
 }
 
-/* ---- Live Preview (实时编辑 / CM6) ---- */
-body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline {
+/* ---- Live Preview (CM6): 仅高亮未解析 ---- */
+body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
   position: relative;
   display: inline-block;
   text-decoration: none !important;
 
-  color: var(--interactive-accent);
+  color: var(--text-muted);
   font-weight: 500;
 
   background: linear-gradient(
     to bottom,
     transparent 0%,
     transparent 88%,
-    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 88%,
-    color-mix(in srgb, var(--interactive-accent) 35%, transparent) 96%,
+    color-mix(in srgb, var(--text-accent) 35%, transparent) 88%,
+    color-mix(in srgb, var(--text-accent) 35%, transparent) 96%,
     transparent 96%
   );
 
   border-radius: 2px;
   padding: 1px 4px;
   margin: 0 -2px;
-
   transition: all 0.18s ease;
 }
 
-/* CM6 未创建链接 */
-body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline {
-  color: var(--text-muted);
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 88%,
-    color-mix(in srgb, var(--text-muted) 35%, transparent) 88%,
-    color-mix(in srgb, var(--text-muted) 35%, transparent) 96%,
-    transparent 96%
-  );
-  font-weight: 400;
-  opacity: 0.85;
-}
-
-/* CM6 激活/悬停状态 */
-body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline:hover,
-body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .cm-underline {
+body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved .cm-underline:hover,
+body.ob-ps-hl-wl .cm-hmd-internal-link.is-unresolved.cm-active .cm-underline {
+  color: var(--text-normal);
   background: linear-gradient(
     to bottom,
     transparent 0%,
     transparent 84%,
-    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 84%,
-    color-mix(in srgb, var(--interactive-accent) 55%, transparent) 94%,
+    color-mix(in srgb, var(--text-accent) 55%, transparent) 84%,
+    color-mix(in srgb, var(--text-accent) 55%, transparent) 94%,
     transparent 94%
   );
-
-  filter: brightness(0.92) saturate(1.1);
+  filter: brightness(0.95) saturate(1.1);
 }

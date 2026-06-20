@@ -300,14 +300,14 @@ export class RunnerView extends ItemView {
     // 卡片边框/背景
     const card = item.querySelector(".runner-btn-card");
     if (card) {
-      card.removeClass("is-running", "is-exited", "is-stopped");
+      card.removeClass("is-running", "is-exited-ok", "is-exited-err", "is-stopped");
       card.addClass(`is-${tab.status}`);
     }
 
     // 指示灯
     const dot = item.querySelector(".runner-dot");
     if (dot) {
-      dot.removeClass("is-running", "is-exited", "is-stopped");
+      dot.removeClass("is-running", "is-exited-ok", "is-exited-err", "is-stopped");
       dot.addClass(`is-${tab.status}`);
     }
 
@@ -315,7 +315,7 @@ export class RunnerView extends ItemView {
     const st = item.querySelector(".runner-status-text");
     if (st) {
       st.setText(this.statusLabel(tab));
-      st.removeClass("is-running", "is-exited", "is-stopped");
+      st.removeClass("is-running", "is-exited-ok", "is-exited-err", "is-stopped");
       st.addClass(`is-${tab.status}`);
     }
   }
@@ -658,7 +658,8 @@ export class RunnerView extends ItemView {
   private statusLabel(tab: RunnerTab): string {
     if (tab.status === "running") return "运行中";
     if (tab.status === "stopped") return "已停止";
-    return `已退出 (${tab.exitCode ?? "?"})`;
+    if (tab.status === "exited-ok") return "已退出 (0)";
+    return `异常退出 (${tab.exitCode ?? "?"})`;
   }
 }
 
