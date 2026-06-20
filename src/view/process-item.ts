@@ -45,7 +45,13 @@ export function renderProcessItem(
 
   // ---- 按钮卡片:点击整张卡片切换启动/停止 ----
   const card = item.createDiv({ cls: `runner-btn-card is-${tab.status}` });
+  card.setAttr("draggable", "true");
   card.addEventListener("click", () => ctx.onCardClick(tab));
+
+  // 拖拽手柄(左侧 grip 图标)
+  const dragHandle = card.createDiv({ cls: "runner-drag-handle" });
+  setIcon(dragHandle, "grip-vertical");
+  dragHandle.addEventListener("click", (e) => e.stopPropagation());
 
   // 左:指示灯 + 自定义名称(主标签)
   const left = card.createDiv({ cls: "runner-card-left" });

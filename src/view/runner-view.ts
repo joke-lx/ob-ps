@@ -53,6 +53,9 @@ export class RunnerView extends ItemView {
   private formEl!: HTMLElement;
   private readonly outputElMap = new Map<string, HTMLElement>();
 
+  // ---- DnD 拖拽排序状态 ----
+  private dragSourceId: string | null = null;
+
   getViewType(): string {
     return RUNNER_VIEW_TYPE;
   }
@@ -139,6 +142,9 @@ export class RunnerView extends ItemView {
 
     // 进程列表
     this.listEl = root.createDiv({ cls: "runner-list" });
+
+    // 拖拽排序事件
+    this.setupDragEvents();
   }
 
   /** 打开 Obsidian 设置 → Local Runner 标签页 */
@@ -348,6 +354,80 @@ export class RunnerView extends ItemView {
         command: t.command,
         cwd: t.cwd,
       })),
+    );
+  }
+
+  // ---- 拖拽排序 (HTML5 DnD) --------------------------------------------------
+
+  /** 在 listEl 上绑定一次 DnD 事件委托 */
+  private setupDragEvents(): void {
+    this.listEl.addEventListener("dragstart", (e: DragEvent) => {
+      const card = (e.target as HTMLElement).closest(".runner-btn-card");
+      if (!card) { e.preventDefault(); return; }
+      const item = card.closest<HTMLElement>(".runner-item");
+      if (!item) { e.preventDefault(); return; }
+      const id = item.dataset.id;
+      if (!id) { e.preventDefault(); return; }
+
+      this.dragSourceId = id;
+      e.dataTransfer?.setData("text/plain", id);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      item.addClass("is-dragging");
+    });
+
+    this.listEl.addEventListener("dragend", () => {
+      this.cleanDragState();
+      this.dragSourceId = null;
+    });
+
+    this.listEl.addEventListener("dragover", (e: DragEvent) => {
+      e.preventDefault(); // 允许 drop
+      const item = (e.target as HTMLElement).closest<HTMLElement>(".runner-item");
+      if (!item) return;
+      // 切换拖拽高亮至当前悬停的卡片
+      this.listEl.querySelectorAll(".is-drag-over").forEach((el) =>
+        el.removeClass("is-drag-over"),
+      );
+      item.addClass("is-drag-over");
+    });
+
+    this.listEl.addEventListener("dragleave", (e: DragEvent) => {
+      const item = (e.target as HTMLElement).closest<HTMLElement>(".runner-item");
+      if (!item) return;
+      // 进入子元素时不取消高亮
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && item.contains(related)) return;
+      item.removeClass("is-drag-over");
+    });
+
+    this.listEl.addEventListener("drop", (e: DragEvent) => {
+      e.preventDefault();
+      const draggedId = e.dataTransfer?.getData("text/plain") ?? this.dragSourceId;
+      const targetItem =
+        (e.target as HTMLElement).closest<HTMLElement>(".runner-item");
+      if (!draggedId || !targetItem) return;
+      const targetId = targetItem.dataset.id;
+      if (!targetId || draggedId === targetId) return;
+
+      const fromIdx = this.tabs.findIndex((t) => t.id === draggedId);
+      const toIdx = this.tabs.findIndex((t) => t.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [moved] = this.tabs.splice(fromIdx, 1);
+      const adjustedTo = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      this.tabs.splice(adjustedTo, 0, moved);
+
+      this.cleanDragState();
+      this.dragSourceId = null;
+      this.saveConfigs();
+      this.renderAll();
+    });
+  }
+
+  /** 清除所有 DnD 相关的 class */
+  private cleanDragState(): void {
+    this.listEl?.querySelectorAll(".is-dragging, .is-drag-over").forEach((el) =>
+      (el as HTMLElement).removeClass("is-dragging", "is-drag-over"),
     );
   }
 }

@@ -95,6 +95,38 @@
   transform: scale(0.99);
 }
 
+/* ===== 拖拽手柄 ===== */
+.runner-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  cursor: grab;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  opacity: 0.35;
+  transition: opacity 0.12s;
+  margin-right: 2px;
+}
+.runner-btn-card:hover .runner-drag-handle {
+  opacity: 0.75;
+  color: var(--text-muted);
+}
+.runner-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ===== 拖拽中状态 ===== */
+.runner-item.is-dragging .runner-btn-card {
+  opacity: 0.35;
+  border-style: dashed;
+}
+.runner-item.is-drag-over .runner-btn-card {
+  border-top-color: var(--interactive-accent);
+  border-top-width: 3px;
+}
+
 /* 运行中:黄色光晕 */
 .runner-btn-card.is-running {
   border-color: #fbc02d;
