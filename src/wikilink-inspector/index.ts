@@ -9,3 +9,10 @@ export {
   type InspectorViewOptions,
 } from "./inspector-view";
 export { WikilinkInspectorModal } from "./inspector-modal";
+export {
+  type RepairTabStatus,
+  type ModalContent,
+  type RepairModalCallbacks,
+  pickModalContent,
+  WliRepairConfirmModal,
+} from "./repair-modal";

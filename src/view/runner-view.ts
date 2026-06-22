@@ -3,6 +3,7 @@ import type { ProcessConfig } from "../types/process";
 import { DEFAULT_SETTINGS, type PluginSettings } from "../types/settings";
 import {
   isRunning,
+  resolveOrCreateTab,
   type RunnerTab,
   startProcess,
   stopProcess,
@@ -112,6 +113,30 @@ export class RunnerView extends ItemView {
     this.expandedIds.clear();
     this.outputElMap.clear();
     this.renderAll();
+  }
+
+  /**
+   * Host 接口实现:若 command 已存在则复用并启动;否则新建并启动。
+   * 不切换视图;复用时不修改原 tab 的 cwd。
+   */
+  startOrCreateTab(name: string, command: string, cwd: string): RunnerTab {
+    const { tab, created } = resolveOrCreateTab(this.tabs, name, command, cwd);
+    if (created) {
+      this.tabs.push(tab);
+      this.expandedIds.add(tab.id);
+      this.expandScrollId = tab.id;
+      this.saveConfigs();
+      this.renderAll();
+    }
+    // 复用与新建均启动 —— startProcess 内部幂等（已在运行时则早退）
+    tab.output = "";
+    startProcess(tab, () => this.scheduleRender());
+    return tab;
+  }
+
+  /** Host 接口实现:按 command 查找标签页;不存在返回 null */
+  findTabByCommand(command: string): RunnerTab | null {
+    return this.tabs.find((t) => t.command === command) ?? null;
   }
 
   // ---- UI Build -------------------------------------------------------------

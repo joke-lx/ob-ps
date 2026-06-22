@@ -3,6 +3,12 @@ import type { ProcessConfig } from "./src/types/process";
 import { DEFAULT_SETTINGS, type PluginSettings } from "./src/types/settings";
 import { RUNNER_VIEW_TYPE, RunnerView, type ViewOptions } from "./src/view";
 import {
+  REPAIR_UNRESOLVED_LINKS_COMMAND,
+  REPAIR_UNRESOLVED_LINKS_TAB_NAME,
+  isRunning,
+  stopProcess,
+} from "./src/runner";
+import {
   removeDataBackup,
   restoreDataBackup,
   writeDataBackup,
@@ -14,6 +20,7 @@ import {
   WIKILINK_INSPECTOR_VIEW_TYPE,
   WikilinkInspectorView,
   type InspectorViewOptions,
+  type RepairTabStatus,
 } from "./src/wikilink-inspector";
 import { isSkillInstalled } from "./src/skills/repair-links";
 import { flattenWikilinks } from "./src/wikilink-inspector/flatten-links";
@@ -123,6 +130,10 @@ export default class LocalRunnerPlugin extends Plugin {
     this.registerView(WIKILINK_INSPECTOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
       const opts: InspectorViewOptions = {
         onOpenRunner: () => void this.activateView(),
+        getRepairTabStatus: () => this.getRepairTabStatus(),
+        revealRunnerTab: () => this.revealRunnerTab(),
+        onRepairUnresolvedLinks: ({ jumpToRunner }) =>
+          void this.onRepairUnresolvedLinks({ jumpToRunner }),
       };
       return new WikilinkInspectorView(leaf, opts);
     });
@@ -198,6 +209,104 @@ export default class LocalRunnerPlugin extends Plugin {
   getDefaultCwd(): string {
     const adapter = this.app.vault.adapter;
     return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
+  }
+
+  /**
+   * 编排「修复未解析双链」流程:skill 开关自洽 → 拿到 RunnerView → 启动进程。
+   * running 状态下重启会先 stop 同名 tab 再 start。
+   * jumpToRunner=true 时启动后 revealLeaf 跳到 RunnerView。
+   */
+  async onRepairUnresolvedLinks({
+    jumpToRunner,
+  }: {
+    jumpToRunner: boolean;
+  }): Promise<void> {
+    const vault = this.getDefaultCwd();
+    if (!vault) {
+      new Notice("无法获取 vault 路径");
+      return;
+    }
+
+    // 1) 磁盘实际未安装 → 引导去设置页, 不启动
+    if (!isSkillInstalled(vault)) {
+      new Notice(
+        "请先在「设置 → local runner」安装 Obsidian-repair-unresolved-links skill",
+      );
+      await this.openSettings();
+      return;
+    }
+
+    // 2) 磁盘已装但开关未开 → 自动开 + 落盘
+    if (!this.settings.repairLinksSkillInstalled) {
+      this.settings.repairLinksSkillInstalled = true;
+      await this.saveSettings();
+    }
+
+    // 3) 确保 RunnerView 实例就绪 (不 reveal, 留用户在原视图)
+    const view = await this.getOrActivateRunnerView();
+    if (!view) {
+      new Notice("无法获取本地进程视图");
+      return;
+    }
+
+    // 4) running 状态下重启 → 先 stop 同名 tab
+    const existing = view.findTabByCommand(REPAIR_UNRESOLVED_LINKS_COMMAND);
+    if (existing && isRunning(existing)) {
+      stopProcess(existing, () => {});
+    }
+
+    // 5) 启动 (复用同名 或 新建)
+    view.startOrCreateTab(
+      REPAIR_UNRESOLVED_LINKS_TAB_NAME,
+      REPAIR_UNRESOLVED_LINKS_COMMAND,
+      vault,
+    );
+
+    // 6) 按需跳转到 RunnerView
+    if (jumpToRunner) {
+      this.revealRunnerTab();
+    }
+  }
+
+  /** 查询修复 tab 当前状态 —— 供 WLI 视图按钮图标 + 弹窗使用 */
+  private getRepairTabStatus(): RepairTabStatus {
+    const leaf = this.app.workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    const view = leaf?.view;
+    if (!(view instanceof RunnerView)) {
+      return { kind: "not-exists" };
+    }
+    const tab = view.findTabByCommand(REPAIR_UNRESOLVED_LINKS_COMMAND);
+    if (!tab) {
+      return { kind: "not-exists" };
+    }
+    return isRunning(tab) ? { kind: "running" } : { kind: "exited" };
+  }
+
+  /** 跳到 RunnerView 并定位修复 tab(展开它) */
+  private revealRunnerTab(): void {
+    const leaf = this.app.workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    if (!leaf) {
+      new Notice("本地进程视图未就绪");
+      return;
+    }
+    void this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * 拿 RunnerView 实例;若不存在则通过 setViewState 创建并等待 onOpen 完成。
+   * 不调用 revealLeaf —— 按设计不跳转。
+   */
+  private async getOrActivateRunnerView(): Promise<RunnerView | null> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    if (!leaf) {
+      const rightLeaf = workspace.getRightLeaf(false);
+      if (!rightLeaf) return null;
+      await rightLeaf.setViewState({ type: RUNNER_VIEW_TYPE, active: true });
+      leaf = rightLeaf;
+    }
+    const view = leaf.view;
+    return view instanceof RunnerView ? view : null;
   }
 
   /** 根据设置开关添加/移除高亮双链 body class */

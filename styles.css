@@ -579,8 +579,8 @@
 
 /* ===== Highlighted Wikilinks ===============================================
  * 开启后按"解析状态"区分双链颜色:
- *   - 已解析(目标笔记存在)    → 蓝色高亮
- *   - 未解析(目标笔记不存在)  → 绿色高亮
+ *   - 未解析(目标笔记不存在)  → 蓝色高亮
+ *   - 已解析(目标笔记存在)    → 绿色高亮
  *
  * 选择器依据实测 DOM(两种视图):
  *   Reading View : <a class="internal-link"> / <a class="internal-link is-unresolved">
@@ -595,29 +595,33 @@
 
 /* 配色:亮色主题 */
 body.ob-ps-hl-wl {
-  /* 已解析 —— 蓝 */
-  --ob-wl-resolved-bg: rgba(59, 130, 246, 0.13);
-  --ob-wl-resolved-bg-hi: rgba(59, 130, 246, 0.22);
-  --ob-wl-resolved-fg: #1d4ed8;
-  /* 未解析 —— 绿 */
-  --ob-wl-unresolved-bg: rgba(22, 163, 74, 0.14);
-  --ob-wl-unresolved-bg-hi: rgba(22, 163, 74, 0.24);
-  --ob-wl-unresolved-fg: #15803d;
+  /* 已解析 —— 绿 */
+  --ob-wl-resolved-bg: rgba(22, 163, 74, 0.14);
+  --ob-wl-resolved-bg-hi: rgba(22, 163, 74, 0.24);
+  --ob-wl-resolved-fg: #15803d;
+  /* 未解析 —— 蓝 */
+  --ob-wl-unresolved-bg: rgba(59, 130, 246, 0.13);
+  --ob-wl-unresolved-bg-hi: rgba(59, 130, 246, 0.22);
+  --ob-wl-unresolved-fg: #1d4ed8;
+  /* 覆盖 Obsidian 默认变量 */
+  --link-unresolved-color: var(--ob-wl-unresolved-fg);
+  --link-external-color: var(--ob-wl-unresolved-fg);
 }
 
 /* 配色:暗色主题(换更亮的同色系以保证可读性) */
 body.ob-ps-hl-wl.theme-dark {
-  --ob-wl-resolved-bg: rgba(96, 165, 250, 0.16);
-  --ob-wl-resolved-bg-hi: rgba(96, 165, 250, 0.26);
-  --ob-wl-resolved-fg: #93c5fd;
-  --ob-wl-unresolved-bg: rgba(74, 222, 128, 0.16);
-  --ob-wl-unresolved-bg-hi: rgba(74, 222, 128, 0.26);
-  --ob-wl-unresolved-fg: #86efac;
+  --ob-wl-resolved-bg: rgba(74, 222, 128, 0.16);
+  --ob-wl-resolved-bg-hi: rgba(74, 222, 128, 0.26);
+  --ob-wl-resolved-fg: #86efac;
+  --ob-wl-unresolved-bg: rgba(96, 165, 250, 0.16);
+  --ob-wl-unresolved-bg-hi: rgba(96, 165, 250, 0.26);
+  --ob-wl-unresolved-fg: #93c5fd;
+  --link-unresolved-color: var(--ob-wl-unresolved-fg);
 }
 
 /* ---- Reading View ---- */
 
-/* 已解析 → 蓝 */
+/* 已解析 → 绿 */
 body.ob-ps-hl-wl .internal-link:not(.is-unresolved) {
   background: var(--ob-wl-resolved-bg);
   color: var(--ob-wl-resolved-fg);
@@ -632,7 +636,7 @@ body.ob-ps-hl-wl .internal-link:not(.is-unresolved):hover {
   background: var(--ob-wl-resolved-bg-hi);
 }
 
-/* 未解析 → 绿 */
+/* 未解析 → 蓝 */
 body.ob-ps-hl-wl .internal-link.is-unresolved {
   background: var(--ob-wl-unresolved-bg);
   color: var(--ob-wl-unresolved-fg);
@@ -649,7 +653,23 @@ body.ob-ps-hl-wl .internal-link.is-unresolved:hover {
 
 /* ---- Live Preview (CM6) ---- */
 
-/* 已解析 → 蓝(:has() 排除掉含 .is-unresolved 的链接) */
+/* 直接覆盖 .cm-hmd-internal-link 自身颜色(防 Obsidian 默认 .cm-s-obsidian span.cm-hmd-internal-link 透紫色) */
+body.ob-ps-hl-wl .cm-hmd-internal-link {
+  color: var(--ob-wl-unresolved-fg);
+}
+body.ob-ps-hl-wl .cm-hmd-internal-link:not(:has(.is-unresolved)) {
+  color: var(--ob-wl-resolved-fg);
+}
+
+/* 兜底:输入中的双链(未闭合]])或缺少 .is-unresolved 时也保蓝色 */
+body.ob-ps-hl-wl .cm-hmd-internal-link .cm-underline {
+  color: var(--ob-wl-unresolved-fg);
+}
+body.ob-ps-hl-wl .cm-active .cm-hmd-internal-link .cm-underline {
+  color: var(--ob-wl-unresolved-fg);
+}
+
+/* 已解析 → 绿(:has() 排除掉含 .is-unresolved 的链接) */
 body.ob-ps-hl-wl .cm-hmd-internal-link:not(:has(.is-unresolved)) .cm-underline {
   background: var(--ob-wl-resolved-bg);
   color: var(--ob-wl-resolved-fg);
@@ -661,11 +681,12 @@ body.ob-ps-hl-wl .cm-hmd-internal-link:not(:has(.is-unresolved)) .cm-underline {
   transition: background 0.15s ease, color 0.15s ease;
 }
 body.ob-ps-hl-wl .cm-hmd-internal-link:not(:has(.is-unresolved)) .cm-underline:hover,
-body.ob-ps-hl-wl .cm-hmd-internal-link:not(:has(.is-unresolved)).cm-active .cm-underline {
+body.ob-ps-hl-wl .cm-active .cm-hmd-internal-link:not(:has(.is-unresolved)) .cm-underline {
   background: var(--ob-wl-resolved-bg-hi);
+  color: var(--ob-wl-resolved-fg);
 }
 
-/* 未解析 → 绿(实测嵌套:.cm-hmd-internal-link > .is-unresolved > .cm-underline) */
+/* 未解析 → 蓝(实测嵌套:.cm-hmd-internal-link > .is-unresolved > .cm-underline) */
 body.ob-ps-hl-wl .cm-hmd-internal-link .is-unresolved .cm-underline {
   background: var(--ob-wl-unresolved-bg);
   color: var(--ob-wl-unresolved-fg);
@@ -677,12 +698,26 @@ body.ob-ps-hl-wl .cm-hmd-internal-link .is-unresolved .cm-underline {
   transition: background 0.15s ease, color 0.15s ease;
 }
 body.ob-ps-hl-wl .cm-hmd-internal-link .is-unresolved .cm-underline:hover,
-body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .is-unresolved .cm-underline {
+body.ob-ps-hl-wl .cm-active .cm-hmd-internal-link .is-unresolved .cm-underline {
   background: var(--ob-wl-unresolved-bg-hi);
+  color: var(--ob-wl-unresolved-fg);
+}
+
+/* 覆盖输入中双链的 .cm-link 色(未闭合]]时 CM6 用 .cm-link + --link-external-color,不透紫) */
+body.ob-ps-hl-wl .cm-hmd-internal-link .cm-link {
+  color: var(--ob-wl-unresolved-fg);
+}
+/* 精准命中未闭合 [[ 的双链:DOM 只有 .cm-hmd-barelink + .cm-link,无 .cm-hmd-internal-link */
+body.ob-ps-hl-wl .cm-hmd-barelink.cm-link {
+  color: var(--ob-wl-unresolved-fg) !important;
+}
+/* 核弹级:用跟 Obsidian 同样的选择器链再加 body.ob-ps-hl-wl 前缀,任何 !important 都压不住 */
+body.ob-ps-hl-wl .cm-s-obsidian span.cm-hmd-barelink.cm-link {
+  color: var(--ob-wl-unresolved-fg) !important;
 }
 
 /* ===== Wikilink Inspector (wli-) ===========================================
- * 双链检查侧边栏 + Modal。状态色复用笔记内高亮：已解析蓝、未解析绿。
+ * 双链检查侧边栏 + Modal。状态色复用笔记内高亮：已解析绿、未解析蓝。
  * 不与 runner- / ob-ps-hl-wl 规则冲突。
  * ========================================================================== */
 
@@ -793,7 +828,56 @@ body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .is-unresolved .cm-underline {
   font-size: var(--font-ui-small);
 }
 
-/* 状态色点（蓝=已解析，绿=未解析，与笔记内高亮一致） */
+/* head 右侧动作按钮 —— 修复未解析双链 */
+.wli-section-action {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.wli-section-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.wli-section-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 三态指示器 —— 运行中(黄色 + 旋转) / 已退出(灰) */
+@keyframes wli-section-action-spin {
+  to { transform: rotate(360deg); }
+}
+.wli-section-action.is-running {
+  color: #fbc02d;
+}
+.wli-section-action.is-running svg {
+  animation: wli-section-action-spin 1.2s linear infinite;
+}
+.wli-section-action.is-exited {
+  color: var(--text-faint);
+}
+
+/* 弹窗:说明文字 + 按钮行 */
+.wli-repair-desc {
+  margin: 0 0 16px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+.wli-repair-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 状态色点（绿=已解析，蓝=未解析，与笔记内高亮一致） */
 .wli-dot {
   width: 8px;
   height: 8px;
@@ -801,16 +885,16 @@ body.ob-ps-hl-wl .cm-hmd-internal-link.cm-active .is-unresolved .cm-underline {
   flex-shrink: 0;
 }
 .wli-dot.is-resolved {
-  background: #1d4ed8;
-}
-.wli-dot.is-unresolved {
   background: #15803d;
 }
+.wli-dot.is-unresolved {
+  background: #1d4ed8;
+}
 .theme-dark .wli-dot.is-resolved {
-  background: #93c5fd;
+  background: #86efac;
 }
 .theme-dark .wli-dot.is-unresolved {
-  background: #86efac;
+  background: #93c5fd;
 }
 
 /* 行 */

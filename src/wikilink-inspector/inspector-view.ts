@@ -5,15 +5,37 @@ import { partitionByState, type LinkRow } from "./link-row";
 import { renderInspectorRow } from "./inspector-render";
 import { WikilinkInspectorModal } from "./inspector-modal";
 import { flattenWikilinks } from "./flatten-links";
+import {
+  WliRepairConfirmModal,
+  type RepairTabStatus,
+} from "./repair-modal";
 
 export const WIKILINK_INSPECTOR_VIEW_TYPE = "wikilink-inspector-view";
 
 const DEFAULT_PREVIEW = 5;
 const REFRESH_DEBOUNCE_MS = 400;
 
-/** 视图构造参数：onOpenRunner 由 main.ts 绑定到 activateView() */
+/** 按钮状态轮询间隔(ms) —— 反映进程 running/exited 变化 */
+const STATUS_POLL_MS = 1000;
+
+/** 三态对应的 lucide 图标名 */
+const STATUS_ICON: Record<RepairTabStatus["kind"], string> = {
+  "not-exists": "wand-2",
+  running: "loader-2",
+  exited: "circle-check",
+};
+
+/** 视图构造参数:onOpenRunner 由 main.ts 绑定到 activateView() */
 export interface InspectorViewOptions {
   onOpenRunner: () => void;
+  /** 查询修复 tab 当前状态(供按钮图标与弹窗使用) */
+  getRepairTabStatus: () => RepairTabStatus;
+  /** 点击"查看输出"时调用:跳到 RunnerView 并定位修复 tab */
+  revealRunnerTab: () => void;
+  /** 点击"启动"或"重启"时调用;jumpToRunner=true 时启动后跳转 */
+  onRepairUnresolvedLinks: (opts: {
+    jumpToRunner: boolean;
+  }) => void | Promise<void>;
 }
 
 /** 把 app.metadataCache 适配成纯收集器需要的 CollectorSource */
@@ -62,6 +84,8 @@ export class WikilinkInspectorView extends ItemView {
     unresolved: false,
   };
   private debounceTimer: number | null = null;
+  /** 按钮状态轮询 timer(仅 onOpen 期间运行) */
+  private statusTimer: number | null = null;
   private readonly opts: InspectorViewOptions;
   private listEl!: HTMLElement;
 
@@ -89,10 +113,20 @@ export class WikilinkInspectorView extends ItemView {
     this.registerEvent(
       this.app.metadataCache.on("changed", () => this.scheduleRefresh()),
     );
+    // 启动按钮状态轮询
+    this.refreshStatusIcon();
+    this.statusTimer = window.setInterval(
+      () => this.refreshStatusIcon(),
+      STATUS_POLL_MS,
+    );
   }
 
   async onClose(): Promise<void> {
     if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
+    if (this.statusTimer !== null) {
+      window.clearInterval(this.statusTimer);
+      this.statusTimer = null;
+    }
   }
 
   // ---- UI ----
@@ -183,6 +217,21 @@ export class WikilinkInspectorView extends ItemView {
     setIcon(chevron, this.collapsed[key] ? "chevron-right" : "chevron-down");
     head.createDiv({ cls: `wli-dot is-${key}` });
     head.createSpan({ cls: "wli-section-title", text: `${label} (${rows.length})` });
+
+    // 修复未解析双链按钮 —— 仅在 unresolved 分组显示
+    if (key === "unresolved") {
+      const action = head.createDiv({
+        cls: "wli-section-action",
+        title: "修复未解析双链",
+        attr: { "aria-label": "修复未解析双链" },
+      });
+      setIcon(action, STATUS_ICON["not-exists"]);
+      action.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.onRepairBtnClick();
+      });
+    }
+
     head.addEventListener("click", () => {
       this.collapsed[key] = !this.collapsed[key];
       this.renderAll();
@@ -209,6 +258,30 @@ export class WikilinkInspectorView extends ItemView {
         this.renderAll();
       });
     }
+  }
+
+  /** 刷新未解析 head 上修复按钮的图标与状态 class */
+  private refreshStatusIcon(): void {
+    const actionEl = this.contentEl.querySelector<HTMLElement>(
+      ".wli-section.is-unresolved .wli-section-action",
+    );
+    if (!actionEl) return;
+    const status = this.opts.getRepairTabStatus();
+    setIcon(actionEl, STATUS_ICON[status.kind]);
+    actionEl.removeClass("is-running", "is-exited");
+    if (status.kind === "running") actionEl.addClass("is-running");
+    else if (status.kind === "exited") actionEl.addClass("is-exited");
+  }
+
+  /** 修复按钮点击 —— 开确认弹窗,按 tab 状态分支 */
+  private onRepairBtnClick(): void {
+    const status = this.opts.getRepairTabStatus();
+    new WliRepairConfirmModal(this.app, status, {
+      onLaunch: () => {
+        void this.opts.onRepairUnresolvedLinks({ jumpToRunner: false });
+      },
+      onReveal: () => this.opts.revealRunnerTab(),
+    }).open();
   }
 
   // ---- 定"位居取 MarkdownView（当前激活 → 回退到首个 markdown leaf） ----
