@@ -12,6 +12,7 @@ function makeTab(command: string, cwd: string): RunnerTab {
     exitCode: null,
     output: "",
     child: null,
+    generation: 0,
   };
 }
 

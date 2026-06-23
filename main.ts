@@ -1,7 +1,7 @@
 import { FileSystemAdapter, MarkdownView, Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import type { ProcessConfig } from "./src/types/process";
 import { DEFAULT_SETTINGS, type PluginSettings } from "./src/types/settings";
-import { RUNNER_VIEW_TYPE, RunnerView, type ViewOptions } from "./src/view";
+import { MERGED_VIEW_TYPE, MergedRunnerInspectorView, type MergedViewOptions } from "./src/view";
 import {
   REPAIR_UNRESOLVED_LINKS_COMMAND,
   REPAIR_UNRESOLVED_LINKS_TAB_NAME,
@@ -15,11 +15,9 @@ import {
   type BackupPayload,
 } from "./src/backup/data-backup";
 import { LocalRunnerSettingTab } from "./src/settings-tab";
+import { migrateCommandGroups } from "./src/settings-tab/migrate-command-groups";
 import { applyWikilinkStyle } from "./src/wikilink/highlight";
 import {
-  WIKILINK_INSPECTOR_VIEW_TYPE,
-  WikilinkInspectorView,
-  type InspectorViewOptions,
   type RepairTabStatus,
 } from "./src/wikilink-inspector";
 import { isSkillInstalled } from "./src/skills/repair-links";
@@ -70,37 +68,46 @@ export default class LocalRunnerPlugin extends Plugin {
     this.savedConfigs = data?.processes ?? [];
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
 
-    // 3. 恢复成功后立即写回主数据位置,使后续 loadData 命中
+    // 3. 迁移 commandGroups:旧「一组多预设」→ 新「一组一命令」
+    const rawGroups = this.settings.commandGroups;
+    const migratedGroups = migrateCommandGroups(rawGroups);
+    const migrated = !shallowEqualGroups(rawGroups, migratedGroups);
+    this.settings.commandGroups = migratedGroups;
+    if (migrated) {
+      await this.saveSettings();
+    }
+
+    // 4. 恢复成功后立即写回主数据位置,使后续 loadData 命中
     if (restored) {
       await this.saveSettings();
       new Notice("✅ 已从备份恢复进程配置与设置");
     }
 
-    // 4. 纠正「已安装」与磁盘状态不一致
+    // 5. 纠正「已安装」与磁盘状态不一致
     this.reconcileInstalledFlag();
 
-    // 5. 应用高亮双链样式
+    // 6. 应用高亮双链样式
     applyWikilinkStyle(this.settings);
 
-    // 6. 注册设置标签页
+    // 7. 注册设置标签页
     this.addSettingTab(new LocalRunnerSettingTab(this.app, this));
 
-    // 7. 注册视图类型与工厂,保证已持久化的 leaf 能正确反序列化
-    this.registerView(RUNNER_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
-      const view = new RunnerView(leaf, this.buildViewOptions());
+    // 8. 注册合并视图
+    this.registerView(MERGED_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
+      const view = new MergedRunnerInspectorView(leaf, this.buildMergedViewOptions());
       view.setTabsFromConfigs(this.savedConfigs);
       return view;
     });
 
-    // 8. 功能区图标:点击打开侧边栏
-    this.addRibbonIcon("play", "本地进程", () => {
+    // 9. 功能区图标:点击打开侧边栏
+    this.addRibbonIcon("play", "双链 & 进程", () => {
       void this.activateView();
     });
 
-    // 9. 命令面板入口
+    // 10. 命令面板入口
     this.addCommand({
       id: "open",
-      name: "打开本地进程侧边栏",
+      name: "打开侧边栏",
       callback: () => {
         void this.activateView();
       },
@@ -125,30 +132,6 @@ export default class LocalRunnerPlugin extends Plugin {
         new Notice(`已将 ${count} 条双链转为单链`);
       },
     });
-
-    // 10. 注册「双链检查」视图
-    this.registerView(WIKILINK_INSPECTOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
-      const opts: InspectorViewOptions = {
-        onOpenRunner: () => void this.activateView(),
-        getRepairTabStatus: () => this.getRepairTabStatus(),
-        revealRunnerTab: () => this.revealRunnerTab(),
-        onRepairUnresolvedLinks: ({ jumpToRunner }) =>
-          void this.onRepairUnresolvedLinks({ jumpToRunner }),
-      };
-      return new WikilinkInspectorView(leaf, opts);
-    });
-
-    // 11. 双链检查：ribbon + 命令
-    this.addRibbonIcon("link", "双链检查", () => {
-      void this.activateInspectorView();
-    });
-    this.addCommand({
-      id: "open-wikilink-inspector",
-      name: "打开双链检查侧边栏",
-      callback: () => {
-        void this.activateInspectorView();
-      },
-    });
   }
 
   /** 打开插件设置页 */
@@ -161,28 +144,10 @@ export default class LocalRunnerPlugin extends Plugin {
   /** 激活(或首次创建)侧边栏视图并置顶显示 */
   async activateView(): Promise<void> {
     const { workspace } = this.app;
-
-    // 复用已存在的 leaf,否则在右侧栏新建一个
-    let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType(MERGED_VIEW_TYPE)[0];
     if (!leaf) {
       leaf = workspace.getRightLeaf(false);
-      await leaf?.setViewState({ type: RUNNER_VIEW_TYPE, active: true });
-    }
-    if (leaf) {
-      void workspace.revealLeaf(leaf);
-    }
-  }
-
-  /** 激活(或首次创建)双链检查侧边栏视图 */
-  async activateInspectorView(): Promise<void> {
-    const { workspace } = this.app;
-    let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType(WIKILINK_INSPECTOR_VIEW_TYPE)[0];
-    if (!leaf) {
-      leaf = workspace.getRightLeaf(false);
-      await leaf?.setViewState({
-        type: WIKILINK_INSPECTOR_VIEW_TYPE,
-        active: true,
-      });
+      await leaf?.setViewState({ type: MERGED_VIEW_TYPE, active: true });
     }
     if (leaf) {
       void workspace.revealLeaf(leaf);
@@ -212,15 +177,10 @@ export default class LocalRunnerPlugin extends Plugin {
   }
 
   /**
-   * 编排「修复未解析双链」流程:skill 开关自洽 → 拿到 RunnerView → 启动进程。
+   * 编排「修复未解析双链」流程:skill 开关自洽 → 拿到 MergedView → 启动进程。
    * running 状态下重启会先 stop 同名 tab 再 start。
-   * jumpToRunner=true 时启动后 revealLeaf 跳到 RunnerView。
    */
-  async onRepairUnresolvedLinks({
-    jumpToRunner,
-  }: {
-    jumpToRunner: boolean;
-  }): Promise<void> {
+  async onRepairUnresolvedLinks(): Promise<void> {
     const vault = this.getDefaultCwd();
     if (!vault) {
       new Notice("无法获取 vault 路径");
@@ -242,10 +202,10 @@ export default class LocalRunnerPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // 3) 确保 RunnerView 实例就绪 (不 reveal, 留用户在原视图)
-    const view = await this.getOrActivateRunnerView();
+    // 3) 确保 MergedView 实例就绪
+    const view = await this.getOrActivateMergedView();
     if (!view) {
-      new Notice("无法获取本地进程视图");
+      new Notice("无法获取视图");
       return;
     }
 
@@ -261,18 +221,13 @@ export default class LocalRunnerPlugin extends Plugin {
       REPAIR_UNRESOLVED_LINKS_COMMAND,
       vault,
     );
-
-    // 6) 按需跳转到 RunnerView
-    if (jumpToRunner) {
-      this.revealRunnerTab();
-    }
   }
 
-  /** 查询修复 tab 当前状态 —— 供 WLI 视图按钮图标 + 弹窗使用 */
+  /** 查询修复 tab 当前状态 —— 供视图按钮图标 + 弹窗使用 */
   private getRepairTabStatus(): RepairTabStatus {
-    const leaf = this.app.workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    const leaf = this.app.workspace.getLeavesOfType(MERGED_VIEW_TYPE)[0];
     const view = leaf?.view;
-    if (!(view instanceof RunnerView)) {
+    if (!(view instanceof MergedRunnerInspectorView)) {
       return { kind: "not-exists" };
     }
     const tab = view.findTabByCommand(REPAIR_UNRESOLVED_LINKS_COMMAND);
@@ -282,31 +237,18 @@ export default class LocalRunnerPlugin extends Plugin {
     return isRunning(tab) ? { kind: "running" } : { kind: "exited" };
   }
 
-  /** 跳到 RunnerView 并定位修复 tab(展开它) */
-  private revealRunnerTab(): void {
-    const leaf = this.app.workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
-    if (!leaf) {
-      new Notice("本地进程视图未就绪");
-      return;
-    }
-    void this.app.workspace.revealLeaf(leaf);
-  }
-
-  /**
-   * 拿 RunnerView 实例;若不存在则通过 setViewState 创建并等待 onOpen 完成。
-   * 不调用 revealLeaf —— 按设计不跳转。
-   */
-  private async getOrActivateRunnerView(): Promise<RunnerView | null> {
+  /** 获取 MergedView 实例 */
+  private async getOrActivateMergedView(): Promise<MergedRunnerInspectorView | null> {
     const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(RUNNER_VIEW_TYPE)[0];
+    let leaf = workspace.getLeavesOfType(MERGED_VIEW_TYPE)[0];
     if (!leaf) {
       const rightLeaf = workspace.getRightLeaf(false);
       if (!rightLeaf) return null;
-      await rightLeaf.setViewState({ type: RUNNER_VIEW_TYPE, active: true });
+      await rightLeaf.setViewState({ type: MERGED_VIEW_TYPE, active: true });
       leaf = rightLeaf;
     }
     const view = leaf.view;
-    return view instanceof RunnerView ? view : null;
+    return view instanceof MergedRunnerInspectorView ? view : null;
   }
 
   /** 根据设置开关添加/移除高亮双链 body class */
@@ -317,7 +259,7 @@ export default class LocalRunnerPlugin extends Plugin {
   // ---- 内部辅助 --------------------------------------------------------------
 
   /** 视图初始化参数 */
-  private buildViewOptions(): ViewOptions {
+  private buildMergedViewOptions(): MergedViewOptions {
     return {
       defaultCwd: this.getDefaultCwd(),
       settings: this.settings,
@@ -325,7 +267,12 @@ export default class LocalRunnerPlugin extends Plugin {
         this.savedConfigs = configs;
         void this.saveSettings();
       },
-      onOpenInspector: () => void this.activateInspectorView(),
+      onSaveCommandGroups: (groups) => {
+        this.settings.commandGroups = groups;
+        void this.saveSettings();
+      },
+      getRepairTabStatus: () => this.getRepairTabStatus(),
+      onRepairUnresolvedLinks: () => void this.onRepairUnresolvedLinks(),
     };
   }
 
@@ -345,4 +292,22 @@ export default class LocalRunnerPlugin extends Plugin {
       void this.saveSettings();
     }
   }
+}
+
+/** 浅比较两组数组的元素是否一致(按当前形状逐字段比较) */
+function shallowEqualGroups(
+  a: unknown,
+  b: import("./src/types/commands").CommandGroup[],
+): boolean {
+  if (!Array.isArray(a)) return b.length === 0;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] as Record<string, unknown>;
+    const y = b[i];
+    if (x.id !== y.id) return false;
+    if (x.name !== y.name) return false;
+    if (x.command !== y.command) return false;
+    if ((x.cwd ?? "") !== (y.cwd ?? "")) return false;
+  }
+  return true;
 }

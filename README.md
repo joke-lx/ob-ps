@@ -1,24 +1,24 @@
 # Local Runner
 
-Run local shell commands from an Obsidian sidebar tab with live, per-process output. Each command gets its own card with a status indicator and expandable log — perfect for keeping `npm run dev` or `npx vite` running while you write notes.
+Run local shell commands from an Obsidian sidebar tab with live, per-process output. Each command gets its own card with a status indicator and expandable log — perfect for keeping `npm run dev` or `npx vite` running while you write notes. **Wikilink inspection is now built into the same view** — no more switching between two sidebar panels.
 
-在 Obsidian 侧边栏管理本地 shell 进程并实时查看输出。每个进程一条记录，带状态指示灯、可展开日志，支持命令组快捷填充 —— 适合边写文档边跑 `npm run dev` / `npx vite` / 任意 CLI 工具。
+在 Obsidian 侧边栏管理本地 shell 进程并实时查看输出。每个进程一条记录，带状态指示灯、可展开日志，支持命令组快捷填充 —— 适合边写文档边跑 `npm run dev` / `npx vite` / 任意 CLI 工具。**双链检查已融入同一视图**，不再需要在两个侧边栏面板间切换。
 
 ## Features
 
 - 🖥️ **Multiple processes in parallel** — run several commands at once, each with its own output panel
+- 🔗 **Unified sidebar view** — wikilink inspection and process management in one pane; action buttons (clear current / clear all unresolved / complete missing notes / new process) at the top, quick process start/stop inline
 - 📺 **Sidebar integration** — watch logs without leaving Obsidian
-- 🟢 **Status indicator** — running / stopped / exited (with exit code) at a glance
-- ▶️ **One-click start & stop** — click the process card to toggle
+- 🟢 **Status indicator** — running (yellow) / exited ok (green) / exited err (red) at a glance
+- ▶️ **One-click start & stop** — click the process quick-button in the action bar
 - 📝 **Inline form** — create / edit a process (name / command / working directory); `Enter` to submit, `Esc` to cancel
 - 🔁 **Live streaming output** — stdout / stderr merged, auto-scroll to bottom
 - 📂 **Expand / collapse** — each process log can be expanded independently
 - 💾 **Persisted** — process configurations and settings survive Obsidian restarts
-- ✏️ **Edit / delete** — change commands or clean up anytime
-- 🗂️ **Command groups** — define reusable presets in settings; the new-process form offers a two-level "group → preset" dropdown to fill the form with one click
+- 🗂️ **Command groups** — define reusable presets in settings; the new-process form offers a dropdown to fill the form with one click
 - 🔧 **Wikilink-repair skill installer** — copy the bundled `obsidian-repair-unresolved-links` skill to your vault's `.claude/skills/` with one toggle
 - 🎨 **Highlighted wikilinks** — give internal `[[]]` links a more readable style
-- 🔗 **Wikilink inspector sidebar** — a separate sidebar view listing every `[[ ]]` link grouped by resolved (blue) / unresolved (green), newest source-note first, 5-per-group preview with load-more, and a full-list modal with search/filter; one-click switch to/from the process panel
+- 🔗 **Wikilink inspector** — built into the unified sidebar; lists every `[[ ]]` link grouped by resolved / unresolved, newest source-note first, with a full-list modal
 - 🪟 **Windows process tree kill** — `taskkill /T /F` so dev servers don't keep your port
 - 🎯 **ANSI stripped** — output is plain text, capped at 200k chars to bound memory
 
@@ -39,14 +39,14 @@ Run local shell commands from an Obsidian sidebar tab with live, per-process out
 
 ## Usage
 
-1. Open the sidebar: command palette (`Ctrl/Cmd + P`) → "Open local process sidebar", or click the terminal icon in the left ribbon
-2. Create a process: click **＋** in the sidebar header, fill in name / command / working directory → `Enter` (or click "Run")
-3. Start / stop a process: click the process **card** to toggle
-4. View output: click the **▾** on the right of the card to expand the log
-5. Edit / delete: click the ✏ / × on the right of the card
-6. Quick fill: when creating, pick a group in the "Command group" dropdown, then a preset — the form auto-fills
-7. Open the **wikilink inspector**: click the `link` ribbon icon (left sidebar) or run "打开双链检查侧边栏" from the command palette — a sidebar view shows every `[[ ]]` link grouped by resolved (blue) / unresolved (green), newest source-note first, 5-per-group preview with load-more, and a full-list modal with search/filter
-8. **Switch between panes**: click the `play` icon in the inspector header to jump to the process pane, or the `link` icon in the process header to jump back
+1. Open the sidebar: command palette (`Ctrl/Cmd + P`) → "Open sidebar", or click the play icon in the left ribbon
+2. Create a process: click **+新建进程** in the action bar, fill in name / command / working directory → `Enter` (or click "Run")
+3. Start / stop a process: click the process **quick-button** in the action bar (second row)
+4. View output: click a process **card** in the terminal output section to expand the log
+5. Clear wikilinks: use **清除当前** or **清除全部** buttons in the action bar
+6. Complete unresolved wikilinks: click **完善** to let Claude auto-generate missing notes
+7. Quick fill: when creating, pick a group in the "Command group" dropdown, then a preset — the form auto-fills
+8. Open the **wikilink inspector**: built into the unified sidebar; the upper section shows every `[[ ]]` link grouped by resolved / unresolved
 
 ## Settings
 
@@ -107,14 +107,14 @@ ISC — see [LICENSE](LICENSE).
 **进程管理**
 
 - 🖥️ **多进程并行** — 同一侧边栏同时跑多个命令，各自独立显示输出
+- 🔗 **统一侧边栏视图** — 双链检查与进程管理合并在一个面板；顶栏操作按钮（清除当前 / 清除全部 / 完善 / 新建进程），第二行进程快捷启停
 - 📺 **侧边栏集成** — 不切窗口，Obsidian 内直接看日志
-- 🟢 **状态指示灯** — 运行中 / 已停止 / 已退出（含退出码）一目了然
-- ▶️ **一键启停** — 点击进程卡片即可启动或停止
+- 🟢 **状态指示灯** — 运行中（黄）/ 正常退出（绿）/ 异常退出（红）一目了然
+- ▶️ **一键启停** — 点操作区第二行的进程快捷按钮
 - 📝 **内联表单** — 新建 / 编辑进程（名称 / 命令 / 工作目录），`Enter` 提交、`Esc` 取消
 - 🔁 **实时流式输出** — stdout / stderr 合并实时刷新，自动滚动到底
 - 📂 **展开 / 收起** — 每个进程的输出可独立展开查看
 - 💾 **持久化** — 进程配置与设置自动保存，重启 Obsidian 不丢
-- ✏️ **编辑 / 删除** — 随时改命令或清理不需要的进程
 
 **快捷命令组**
 
@@ -123,9 +123,9 @@ ISC — see [LICENSE](LICENSE).
 
 **附加能力（面向 Claude Code 用户）**
 
-- 🔧 **双链修复 skill 安装** — 一键把插件自带的 `obsidian-repair-unresolved-links` skill 复制到 vault 的 `.claude/skills/`，用于自动补全未解析的 `[[]]` 双链
+- 🔧 **双链完善 skill 安装** — 一键把插件自带的 `obsidian-repair-unresolved-links` skill 复制到 vault 的 `.claude/skills/`，用于自动补全未解析的 `[[]]` 双链
 - 🎨 **高亮双链样式** — 开启后笔记中的内部双链以更醒目的样式显示
-- 🔗 **双链检查侧边栏** — 独立侧边栏视图，按解析状态分组列出所有 `[[ ]]` 双链（已解析蓝 / 未解析绿），按源笔记创建时间倒序，默认每组 5 条、可加载更多，「查看全部」打开全量 Modal（搜索/筛选）；与进程面板顶栏一键互跳
+- 🔗 **双链检查** — 整合在统一侧边栏上半部分，按解析状态列出所有 `[[ ]]` 双链，「查看全部」打开全量 Modal（搜索/筛选）
 
 **底层细节**
 
@@ -149,21 +149,21 @@ ISC — see [LICENSE](LICENSE).
 
 ## 使用
 
-1. 打开侧边栏：命令面板（`Ctrl/Cmd + P`）搜 `打开本地进程侧边栏`，或点左侧 ribbon 的终端图标
-2. 新建进程：点侧边栏头部的 **＋**，填名称 / 命令 / 工作目录 → `Enter`（或点「运行」）
-3. 启停进程：点进程**卡片**切换运行 / 停止
-4. 查看输出：点卡片右侧的 **▾** 展开日志
-5. 编辑 / 删除：点卡片右侧的 ✏ / ×
-6. 快捷填充：新建时先在「快捷命令组」下拉里选组，再选预设，表单自动填好
-7. 打开**双链检查侧边栏**：点左侧 ribbon 的 `link` 图标或从命令面板运行「打开双链检查侧边栏」——侧边栏列出所有 `[[ ]]` 双链，按已解析（蓝）/ 未解析（绿）分组，按源笔记创建时间倒序，每组默认 5 条、可加载更多，「查看全部」打开全量 Modal（搜索/筛选）
-8. **切换面板**：双链视图顶栏 `play` 按钮→进程视图；进程视图顶栏 `link` 按钮→双链视图，一键互跳
+1. 打开侧边栏：命令面板（`Ctrl/Cmd + P`）搜 `打开侧边栏`，或点左侧 ribbon 的播放图标
+2. 新建进程：点操作区的 **+新建进程**，填名称 / 命令 / 工作目录 → `Enter`（或点「运行」）
+3. 启停进程：点操作区第二行的进程快捷按钮切换运行 / 停止
+4. 查看日志：点**终端输出**区的进程卡片展开日志
+5. 清除双链：用操作区的 **清除当前** 或 **清除全部** 按钮
+6. 完善双链：点 **完善** 让 Claude 自动补全缺失笔记
+7. 快捷填充：新建时在「快捷命令组」下拉里选组，表单自动填好
+8. 查看双链：统一侧边栏的上半部分列出所有 `[[ ]]` 双链，按解析状态分组
 
 ## 设置
 
 打开 **Settings → Local Runner**：
 
 - **命令组管理** — 增删命令组与命令预设，支持上下排序
-- **添加双链修复 skill** — 开关：把 skill 装到 / 从 vault 移除
+- **添加双链完善 skill** — 开关：把 skill 装到 / 从 vault 移除
 - **高亮双链样式** — 开关：高亮笔记中的内部双链
 
 ## 安全提示

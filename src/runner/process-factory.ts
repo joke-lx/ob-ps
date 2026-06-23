@@ -15,5 +15,6 @@ export function createTab(name: string, command: string, cwd: string): RunnerTab
     exitCode: null,
     output: "",
     child: null,
+    generation: 0,
   };
 }

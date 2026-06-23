@@ -17,6 +17,9 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
 
   tab.status = "running";
   tab.exitCode = null;
+  // 自增世代号,让旧子进程迟到的 close/error 事件无法污染新进程的状态
+  tab.generation += 1;
+  const myGen = tab.generation;
 
   let child: ChildProcess;
   try {
@@ -31,6 +34,7 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
     appendOutput(tab, `\n[启动失败] ${(err as Error).message}\n`);
     tab.status = "exited-err";
     tab.exitCode = -1;
+    tab.child = null;
     onChange();
     return;
   }
@@ -40,14 +44,17 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
 
   // stdout / stderr 统一写入同一缓冲,简化展示
   child.stdout?.on("data", (data: Buffer) => {
+    if (tab.generation !== myGen) return;
     appendOutput(tab, stripAnsi(data.toString()));
     onChange();
   });
   child.stderr?.on("data", (data: Buffer) => {
+    if (tab.generation !== myGen) return;
     appendOutput(tab, stripAnsi(data.toString()));
     onChange();
   });
   child.on("error", (err: Error) => {
+    if (tab.generation !== myGen) return;
     appendOutput(tab, `\n[错误] ${err.message}\n`);
     tab.status = "exited-err";
     tab.exitCode = -1;
@@ -55,6 +62,11 @@ export function startProcess(tab: RunnerTab, onChange: () => void): void {
     onChange();
   });
   child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+    // 旧世代的 close 事件一律丢弃(用户已 stop + restart 的场景)
+    if (tab.generation !== myGen) {
+      tab.child = null;
+      return;
+    }
     // 避免 stopProcess 已设置 "stopped" 后被 close 覆盖为 exited
     if (tab.status !== "stopped") {
       tab.status = isSuccessExit(code, signal) ? "exited-ok" : "exited-err";

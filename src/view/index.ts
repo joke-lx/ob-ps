@@ -3,13 +3,13 @@
  */
 
 export type { ProcessConfig } from "../types/process";
-export type { CommandGroup, CommandPreset } from "../types/commands";
+export type { CommandGroup } from "../types/commands";
 export {
   DEFAULT_SETTINGS,
   type PluginSettings,
 } from "../types/settings";
 
-export { RUNNER_VIEW_TYPE, RunnerView, type ViewOptions } from "./runner-view";
+export { MERGED_VIEW_TYPE, MergedRunnerInspectorView, type MergedViewOptions } from "./merged-view";
 export { ConfirmModal } from "./confirm-modal";
 export {
   renderProcessForm,

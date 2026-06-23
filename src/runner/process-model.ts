@@ -28,6 +28,12 @@ export interface RunnerTab {
   output: string;
   /** 正在运行的子进程;未运行时为 null */
   child: ChildProcess | null;
+  /**
+   * 启动世代号 —— 每次 startProcess 自增 1。
+   * 闭包捕获时机的 generation,用于丢弃旧子进程的迟到 close/error 事件,
+   * 避免在用户「点停-点启」竞态下旧进程污染新进程的状态。
+   */
+  generation: number;
 }
 
 /** 是否正在运行(子进程存在且状态为 running) */
