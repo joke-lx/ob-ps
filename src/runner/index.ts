@@ -15,3 +15,4 @@ export { appendOutput, MAX_OUTPUT_CHARS } from "./output-buffer";
 export { stripAnsi } from "./ansi";
 export { isSuccessExit } from "./exit-code";
 export { startProcess, stopProcess } from "./process-lifecycle";
+export type { ProcChangeKind } from "./process-lifecycle";

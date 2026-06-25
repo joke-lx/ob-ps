@@ -100,7 +100,7 @@ export default class LocalRunnerPlugin extends Plugin {
     });
 
     // 9. 功能区图标:点击打开侧边栏
-    this.addRibbonIcon("play", "双链 & 进程", () => {
+    this.addRibbonIcon("play", "Local runner", () => {
       void this.activateView();
     });
 

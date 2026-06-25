@@ -12,6 +12,31 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background: var(--lr-bg-panel);
+}
+
+/* ===== Design tokens (minimal-line 风格, scoped to merged view) ============
+ * 参考 icons_minimal_line.html: 柔和卡片 + 更大圆角 + 靛蓝强调色。
+ * 全部映射 Obsidian 变量以保证亮/暗主题自适应; 靛蓝 (--lr-accent) 仅在此
+ * 视图内生效, 不覆盖用户主题的 --interactive-accent。语义状态色保持不变。
+ * ======================================================================== */
+.merged-view {
+  --lr-radius-card: 12px;
+  --lr-radius-control: 10px;
+  --lr-shadow-card: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --lr-shadow-card-hover: 0 8px 28px rgba(0, 0, 0, 0.1);
+  --lr-accent: #4f46e5;
+  --lr-accent-hover: #4338ca;
+  --lr-accent-soft: rgba(79, 70, 229, 0.1);
+  --lr-bg-panel: var(--background-secondary);
+  --lr-tracking: 0.5px;
+}
+.theme-dark .merged-view {
+  --lr-accent: #818cf8;
+  --lr-accent-hover: #a5b4fc;
+  --lr-accent-soft: rgba(129, 140, 248, 0.16);
+  --lr-shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --lr-shadow-card-hover: 0 8px 28px rgba(0, 0, 0, 0.65);
 }
 
 /* ===== Header ===== */
@@ -19,13 +44,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 10px 14px 12px;
   flex-shrink: 0;
 }
 .merged-title {
   font-weight: 600;
   font-size: var(--font-ui-medium);
+  letter-spacing: var(--lr-tracking);
 }
 .merged-header-right {
   display: flex;
@@ -35,7 +60,7 @@
 .merged-hdr-btn {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--lr-radius-control);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -44,8 +69,8 @@
   flex-shrink: 0;
 }
 .merged-hdr-btn:hover {
-  background: var(--interactive-hover);
-  color: var(--text-normal);
+  background: var(--lr-accent-soft);
+  color: var(--lr-accent);
 }
 
 /* ===== Three zones — 30% / 35% / 35% ===== */
@@ -104,21 +129,27 @@
   gap: 3px;
   height: 52px;
   padding: 4px 2px;
-  border-radius: 6px;
+  border-radius: var(--lr-radius-card);
   cursor: pointer;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--interactive-normal);
+  border: 1px solid transparent;
+  background: var(--background-primary);
   color: var(--text-normal);
   font-size: 10px;
-  transition: background 0.12s, border-color 0.12s;
+  box-shadow: var(--lr-shadow-card);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .unified-btn:hover {
   background: var(--interactive-hover);
-  border-color: var(--interactive-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--lr-shadow-card-hover);
 }
 .unified-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+}
+/* 双色线性图标的强调色点缀 (主描边走 currentColor, 点缀走靛蓝) */
+.merged-view .lr-icon .lr-ac {
+  stroke: var(--lr-accent);
 }
 .unified-btn.status-running {
   border-color: #fbc02d;
@@ -157,6 +188,7 @@
   font-weight: 600;
   font-size: 12px;
   color: var(--text-normal);
+  letter-spacing: var(--lr-tracking);
   flex: 1;
 }
 .zone-head-badge {
@@ -170,7 +202,7 @@
   cursor: pointer;
 }
 .zone-head-action:hover {
-  color: var(--text-normal);
+  color: var(--lr-accent);
 }
 
 /* ===== WLI content (zone 2) ===== */
@@ -213,6 +245,7 @@
   font-weight: 500;
   font-size: 11px;
   color: var(--text-muted);
+  letter-spacing: 0.2px;
   flex: 1;
 }
 .wli-sub.is-collapsed .wli-sub-body {
@@ -281,7 +314,7 @@
 }
 .wli-load-more:hover {
   background: var(--background-modifier-hover);
-  color: var(--interactive-accent);
+  color: var(--lr-accent);
 }
 
 /* ===== Proc content (zone 3) ===== */
@@ -309,32 +342,34 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border-radius: 6px;
-  border: 2px solid var(--background-modifier-border);
+  border-radius: var(--lr-radius-card);
+  border: 1px solid transparent;
+  background: var(--background-primary);
   cursor: pointer;
   user-select: none;
-  transition: background 0.12s, border-color 0.12s;
+  box-shadow: var(--lr-shadow-card);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .proc-card:hover {
-  border-color: var(--interactive-accent);
   background: var(--interactive-hover);
+  box-shadow: var(--lr-shadow-card-hover);
 }
 .proc-card.status-running {
-  border-color: #fbc02d;
+  border-left: 3px solid #fbc02d;
   background: rgba(251, 192, 45, 0.06);
 }
 .proc-card.status-running:hover {
   background: rgba(251, 192, 45, 0.12);
 }
 .proc-card.status-exited-ok {
-  border-color: #4caf50;
+  border-left: 3px solid #4caf50;
   background: rgba(76, 175, 80, 0.06);
 }
 .proc-card.status-exited-ok:hover {
   background: rgba(76, 175, 80, 0.12);
 }
 .proc-card.status-exited-err {
-  border-color: #f44336;
+  border-left: 3px solid #f44336;
   background: rgba(244, 67, 54, 0.06);
 }
 .proc-card.status-exited-err:hover {
@@ -374,10 +409,14 @@
   font-size: 10px;
   flex-shrink: 0;
 }
+.proc-status.status-running { color: #fbc02d; }
+.proc-status.status-exited-ok { color: #4caf50; }
+.proc-status.status-exited-err { color: #f44336; }
+.proc-status.status-stopped { color: var(--text-faint); }
 .proc-expand {
   width: 20px;
   height: 20px;
-  border-radius: 3px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -443,10 +482,11 @@
 .runner-form-panel {
   margin-top: 6px;
   padding: 10px 12px;
-  border-radius: 8px;
-  border: 2px solid var(--background-modifier-border);
-  border-left: 4px solid var(--interactive-accent);
-  background: var(--background-secondary);
+  border-radius: var(--lr-radius-card);
+  border: 1px solid transparent;
+  border-left: 4px solid var(--lr-accent);
+  background: var(--background-primary);
+  box-shadow: var(--lr-shadow-card);
   animation: runner-form-enter 0.15s ease-out;
 }
 
@@ -466,7 +506,7 @@
 }
 
 .runner-form-panel.is-edit {
-  border-left-color: var(--interactive-accent);
+  border-left-color: var(--lr-accent);
 }
 
 /* ---- Header ---- */
@@ -504,7 +544,7 @@
 .runner-form-input {
   width: 100%;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--lr-radius-control);
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
@@ -522,7 +562,7 @@
 .runner-form-select {
   width: 100%;
   padding: 5px 6px;
-  border-radius: 5px;
+  border-radius: var(--lr-radius-control);
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
