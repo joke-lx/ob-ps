@@ -8,6 +8,7 @@ import {
   appendOutput,
   isRunning,
   resolveOrCreateTab,
+  type ProcChangeKind,
   type RunnerTab,
   startProcess,
   stopProcess,
@@ -30,6 +31,7 @@ import {
   type UnresolvedEdit,
 } from "../wikilink-inspector/clear-unresolved";
 import { ConfirmModal } from "./confirm-modal";
+import { setLrIcon } from "./icons";
 import {
   renderProcessForm,
   type FormMode,
@@ -133,7 +135,7 @@ export class MergedRunnerInspectorView extends ItemView {
     return MERGED_VIEW_TYPE;
   }
   getDisplayText(): string {
-    return "双链 & 进程";
+    return "Local runner";
   }
   getIcon(): string {
     return "link";
@@ -196,8 +198,7 @@ export class MergedRunnerInspectorView extends ItemView {
       this.renderProcAll();
     }
     tab.output = "";
-    startProcess(tab, () => this.scheduleProcRender());
-    this.refreshQuickBar();
+    startProcess(tab, (kind) => this.onProcChange(tab.id, kind));
     return tab;
   }
 
@@ -221,7 +222,7 @@ export class MergedRunnerInspectorView extends ItemView {
 
     // ① Header
     const header = root.createDiv({ cls: "merged-header" });
-    header.createSpan({ cls: "merged-title", text: "双链 & 进程" });
+    header.createSpan({ cls: "merged-title", text: "Local runner" });
 
     const headerRight = header.createDiv({ cls: "merged-header-right" });
 
@@ -249,7 +250,7 @@ export class MergedRunnerInspectorView extends ItemView {
       cls: "unified-btn",
       title: "将当前笔记的双链转为单链",
     });
-    setIcon(clearCurBtn, "unlink");
+    setLrIcon(clearCurBtn, "erase-current");
     clearCurBtn.createSpan({ text: "清除当前" });
     clearCurBtn.addEventListener("click", () => {
       const view = this.getTargetMarkdownView();
@@ -265,7 +266,7 @@ export class MergedRunnerInspectorView extends ItemView {
       cls: "unified-btn",
       title: "将 vault 中全部未解析双链转为单链",
     });
-    setIcon(clearAllBtn, "unlink");
+    setLrIcon(clearAllBtn, "erase-all");
     clearAllBtn.createSpan({ text: "清除全部" });
     clearAllBtn.addEventListener("click", () => this.onClearUnresolvedClick());
 
@@ -273,7 +274,7 @@ export class MergedRunnerInspectorView extends ItemView {
       cls: "unified-btn",
       title: "通过 Claude 完善未解析双链（补全或创建缺失笔记）",
     });
-    setIcon(repairBtn, "wand-2");
+    setLrIcon(repairBtn, "repair");
     repairBtn.createSpan({ text: "完善" });
     repairBtn.addEventListener("click", () => this.onRepairBtnClick());
 
@@ -281,7 +282,7 @@ export class MergedRunnerInspectorView extends ItemView {
       cls: "unified-btn",
       title: "新建进程",
     });
-    setIcon(addProcBtn, "plus");
+    setLrIcon(addProcBtn, "new-process");
     addProcBtn.createSpan({ text: "新建进程" });
     addProcBtn.addEventListener("click", () => this.showAddForm());
 
@@ -492,7 +493,24 @@ export class MergedRunnerInspectorView extends ItemView {
     });
   }
 
-  private scheduleProcRender(): void {
+  /**
+   * runner 回调统一入口:
+   * - "status": 状态/句柄变化 —— 立即全量重渲(边框/状态点/顶部快速栏)
+   * - "data":   文本流追加 —— 进 RAF 节流,只 patch 已展开 tab 的输出
+   *
+   * status 用同步重渲(发生频率极低),data 用 RAF(高频时一帧一次)。
+   * 原因:status 变化意味着 CSS class 集合改变,必须重建 DOM;
+   *       data 只是同 buffer 追加,保留滚动位置/避免抖动至关重要。
+   */
+  private onProcChange(tabId: string, kind: ProcChangeKind): void {
+    if (kind === "status") {
+      this.renderProcAll();
+      return;
+    }
+    this.scheduleProcRender(tabId);
+  }
+
+  private scheduleProcRender(_changedTabId: string): void {
     if (this.rafScheduled) return;
     this.rafScheduled = true;
     window.requestAnimationFrame(() => {
@@ -560,13 +578,11 @@ export class MergedRunnerInspectorView extends ItemView {
     // 进程名
     card.createSpan({ cls: "proc-name", text: tab.name });
 
-    // 状态文字
+    // 状态文字 (颜色由 CSS 类 .proc-status.status-* 提供, 不再内联 style)
     const statusText = isRunn ? "运行中" : isExOk ? "正常退出" : isExErr ? `异常退出 (${tab.exitCode})` : "已停止";
-    const statusColor = isRunn ? "#fbc02d" : isExOk ? "#4caf50" : isExErr ? "#f44336" : "#6c7086";
     card.createSpan({
-      cls: "proc-status",
+      cls: `proc-status ${statusClass}`,
       text: statusText,
-      attr: { style: `color:${statusColor}` },
     });
 
     // 展开/收起箭头
@@ -609,18 +625,17 @@ export class MergedRunnerInspectorView extends ItemView {
 
   private toggleProcess(tab: RunnerTab): void {
     if (isRunning(tab)) {
-      stopProcess(tab, () => this.scheduleProcRender());
+      stopProcess(tab, (kind) => this.onProcChange(tab.id, kind));
     } else if (tab.status === "stopped") {
       tab.output = "";
-      startProcess(tab, () => this.scheduleProcRender());
+      startProcess(tab, (kind) => this.onProcChange(tab.id, kind));
     } else {
       tab.output = "";
       tab.status = "stopped";
       tab.exitCode = null;
       appendOutput(tab, "\n[已重置]\n");
-      this.scheduleProcRender();
+      this.renderProcAll();
     }
-    this.renderProcAll();
   }
 
   // ---- 删除进程 --------------------------------------------------------------
@@ -641,7 +656,7 @@ export class MergedRunnerInspectorView extends ItemView {
     }
     const tab = this.tabs[idx];
     if (tab.child) {
-      stopProcess(tab, () => {});
+      stopProcess(tab, (kind) => this.onProcChange(tab.id, kind));
     }
     this.tabs.splice(idx, 1);
     this.expandedIds.delete(id);
@@ -711,7 +726,7 @@ export class MergedRunnerInspectorView extends ItemView {
     // add
     this.tabs.push(result.tab);
     if (result.autostart) {
-      startProcess(result.tab, () => this.scheduleProcRender());
+      startProcess(result.tab, (kind) => this.onProcChange(result.tab.id, kind));
     }
     this.expandedIds.add(result.tab.id);
     this.expandScrollId = result.tab.id;
