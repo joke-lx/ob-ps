@@ -131,17 +131,19 @@
   padding: 4px 2px;
   border-radius: var(--lr-radius-card);
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 2px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
   font-size: 10px;
-  box-shadow: var(--lr-shadow-card);
-  transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, border-width 0.15s;
 }
 .unified-btn:hover {
   background: var(--interactive-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--lr-shadow-card-hover);
+  border-width: 3px;
+}
+/* 无状态按钮 hover: 边框转柔和中灰 (--text-muted), 介于基础淡边框与深黑之间, 中性不抢色; 有 status 的按钮保持各自状态色 */
+.unified-btn:not(.status-running):not(.status-exited-ok):not(.status-exited-err):hover {
+  border-color: var(--text-muted);
 }
 .unified-btn svg {
   width: 18px;

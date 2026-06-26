@@ -5,8 +5,8 @@
         "matcher": "Bash",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "After the Bash command finishes, if it was one of `npm run build`, `npm run lint`, `npm run dev`, or otherwise related to building/linting this project, immediately invoke the obsidian-plugin-review skill to run a compliance check against Obsidian's official plugin review standards."
+            "type": "command",
+            "command": "node .claude/hooks/build-gate.js"
           }
         ]
       }
