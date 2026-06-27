@@ -60,6 +60,7 @@ export function migrateCommandGroups(input: unknown): CommandGroup[] {
         name: (cg.name ?? "").toString(),
         command: (cg.command ?? "").toString(),
         cwd: (cg.cwd ?? "").toString(),
+        visible: cg.visible !== false,
       });
     }
   }

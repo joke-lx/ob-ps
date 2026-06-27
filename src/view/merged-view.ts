@@ -16,22 +16,10 @@ import {
 import { collectRows, type CollectorSource, type RawLinkEntry } from "../wikilink-inspector/link-collector";
 import { partitionByState, type LinkRow } from "../wikilink-inspector/link-row";
 import { renderInspectorRow } from "../wikilink-inspector/inspector-render";
-import { WikilinkInspectorModal } from "../wikilink-inspector/inspector-modal";
-import { flattenWikilinks } from "../wikilink-inspector/flatten-links";
-import {
-  WliRepairConfirmModal,
-  type RepairTabStatus,
-} from "../wikilink-inspector/repair-modal";
 import { ClearUnresolvedConfirmModal } from "../wikilink-inspector/clear-unresolved-modal";
-import {
-  collectUnresolvedEdits,
-  makeUnresolvedSource,
-  groupEditsByPath,
-  applyEditsToString,
-  type UnresolvedEdit,
-} from "../wikilink-inspector/clear-unresolved";
+import { makeUnresolvedSource } from "../wikilink-inspector/clear-unresolved";
+import type { RepairTabStatus } from "../wikilink-inspector/repair-modal";
 import { ConfirmModal } from "./confirm-modal";
-import { setLrIcon } from "./icons";
 import {
   renderProcessForm,
   type FormMode,
@@ -94,10 +82,6 @@ export class MergedRunnerInspectorView extends ItemView {
     resolved: DEFAULT_PREVIEW,
     unresolved: DEFAULT_PREVIEW,
   };
-  private readonly collapsed: Record<"resolved" | "unresolved", boolean> = {
-    resolved: false,
-    unresolved: false,
-  };
   private debounceTimer: number | null = null;
 
   // Runner state
@@ -120,10 +104,14 @@ export class MergedRunnerInspectorView extends ItemView {
   private procBtnGridEl!: HTMLElement;
   private wliZoneEl!: HTMLElement;
   private wliBodyEl!: HTMLElement;
+  private wliChevronEl!: HTMLElement;
+  private wliCollapsed = false;
   private procZoneEl!: HTMLElement;
   private procBodyEl!: HTMLElement;
   private procChevronEl!: HTMLElement;
   private procCollapsed = false;
+  private logSectionVisible = false;
+  private logBtnEl!: HTMLElement;
   private formEl!: HTMLElement;
 
   constructor(leaf: WorkspaceLeaf, opts: MergedViewOptions) {
@@ -226,79 +214,34 @@ export class MergedRunnerInspectorView extends ItemView {
 
     const headerRight = header.createDiv({ cls: "merged-header-right" });
 
-    const refreshBtn = headerRight.createDiv({ cls: "merged-hdr-btn", title: "刷新" });
-    setIcon(refreshBtn, "refresh-ccw");
-    refreshBtn.addEventListener("click", () => this.refreshWli());
-
-    const allBtn = headerRight.createDiv({ cls: "merged-hdr-btn", title: "弹窗查看全部双链" });
-    setIcon(allBtn, "layout-grid");
-    allBtn.addEventListener("click", () => {
-      new WikilinkInspectorModal(this.app, this.rows).open();
-    });
-
-    const settingsBtn = headerRight.createDiv({ cls: "merged-hdr-btn", title: "设置" });
+    const settingsBtn = headerRight.createDiv({ cls: "clickable-icon", title: "设置" });
     setIcon(settingsBtn, "gear");
     settingsBtn.addEventListener("click", () => void this.openSettings());
 
-    // ===== Zone 1: 操作区 (30%) =====
+    // ===== Zone 1: 进程快捷操作 (auto-size) =====
     this.actionsZoneEl = root.createDiv({ cls: "merged-zone merged-zone-actions" });
 
-    // 4-col grid: operation buttons
-    const grid4 = this.actionsZoneEl.createDiv({ cls: "btn-grid-4" });
-
-    const clearCurBtn = grid4.createDiv({
-      cls: "unified-btn",
-      title: "将当前笔记的双链转为单链",
-    });
-    setLrIcon(clearCurBtn, "erase-current");
-    clearCurBtn.createSpan({ text: "清除当前" });
-    clearCurBtn.addEventListener("click", () => {
-      const view = this.getTargetMarkdownView();
-      if (!view) {
-        new Notice("没有打开的笔记");
-        return;
-      }
-      const count = flattenWikilinks(view.editor);
-      new Notice(`已将 ${count} 条双链转为单链`);
-    });
-
-    const clearAllBtn = grid4.createDiv({
-      cls: "unified-btn",
-      title: "将 vault 中全部未解析双链转为单链",
-    });
-    setLrIcon(clearAllBtn, "erase-all");
-    clearAllBtn.createSpan({ text: "清除全部" });
-    clearAllBtn.addEventListener("click", () => this.onClearUnresolvedClick());
-
-    const repairBtn = grid4.createDiv({
-      cls: "unified-btn",
-      title: "通过 Claude 完善未解析双链（补全或创建缺失笔记）",
-    });
-    setLrIcon(repairBtn, "repair");
-    repairBtn.createSpan({ text: "完善" });
-    repairBtn.addEventListener("click", () => this.onRepairBtnClick());
-
-    const addProcBtn = grid4.createDiv({
-      cls: "unified-btn",
-      title: "新建进程",
-    });
-    setLrIcon(addProcBtn, "new-process");
-    addProcBtn.createSpan({ text: "新建进程" });
-    addProcBtn.addEventListener("click", () => this.showAddForm());
-
-    // 3-col grid: process quick-buttons (same unified-btn style)
-    this.procBtnGridEl = this.actionsZoneEl.createDiv({ cls: "btn-grid-3" });
+    // Process quick-bar (flex-wrap, auto-sized)
+    this.procBtnGridEl = this.actionsZoneEl.createDiv({ cls: "btn-process-bar" });
     this.refreshQuickBar();
+
+    // Utility row: log toggle only
+    const utilityRow = this.actionsZoneEl.createDiv({ cls: "proc-utility-row" });
+
+    this.logBtnEl = utilityRow.createDiv({ cls: "proc-util-btn", title: "查看日志" });
+    setIcon(this.logBtnEl, "terminal");
+    this.logBtnEl.createSpan({ text: "日志" });
+    this.logBtnEl.addEventListener("click", () => this.toggleLogSection());
 
     // ③ Form container (beneath zones)
     this.formEl = root.createDiv({ cls: "merged-form-container" });
 
-    // ===== Zone 2: 双链检查 (35%) =====
+    // ===== Zone 2: 双链检查 (fills remaining space) =====
     this.wliZoneEl = root.createDiv({ cls: "merged-zone merged-zone-wli" });
     this.buildWliSection();
 
-    // ===== Zone 3: 终端输出 (35%) =====
-    this.procZoneEl = root.createDiv({ cls: "merged-zone merged-zone-proc" });
+    // ===== Zone 3: 终端输出 (hidden by default) =====
+    this.procZoneEl = root.createDiv({ cls: "merged-zone merged-zone-proc is-collapsed" });
     this.buildProcSection();
 
     // DnD
@@ -309,39 +252,41 @@ export class MergedRunnerInspectorView extends ItemView {
 
   private refreshQuickBar(): void {
     this.procBtnGridEl.empty();
-    if (this.tabs.length === 0) return;
+    const groups = this.opts.settings.commandGroups ?? [];
+    const visible = groups.filter((g) => g.visible !== false);
+    if (visible.length === 0) return;
 
-    for (const tab of this.tabs) {
-      const isRunn = isRunning(tab);
-      const isExOk = tab.status === "exited-ok";
-      const isExErr = tab.status === "exited-err";
-      const statusClass = isRunn
-        ? "status-running"
-        : isExOk
-          ? "status-exited-ok"
-          : isExErr
-            ? "status-exited-err"
-            : "";
+    for (const group of visible) {
+      // Find matching process tab (by command)
+      const tab = this.tabs.find((t) => t.command === group.command);
+      const isRunn = tab ? isRunning(tab) : false;
+      const isExErr = tab ? tab.status === "exited-err" : false;
 
       const btn = this.procBtnGridEl.createDiv({
-        cls: `unified-btn${statusClass ? " " + statusClass : ""}`,
-        title: `${tab.name} — ${isRunn ? "运行中,点击停止" : isExErr ? `已退出(${tab.exitCode}),点击重启` : "已停止,点击启动"}`,
+        cls: `proc-quick-btn${isRunn ? " status-running" : isExErr ? " status-exited-err" : ""}`,
+        title: `${group.name}${tab ? " — " + (isRunn ? "运行中,点击停止" : isExErr ? "已退出,点击重启" : "已停止,点击启动") : " — 点击启动"}`,
       });
 
-      // Icon row (same icon-above-text pattern as operation buttons)
-      const iconRow = btn.createDiv({ cls: "", attr: { style: "display:flex;align-items:center;gap:3px;" } });
+      // Status dot
       if (isRunn) {
-        iconRow.createSpan({ cls: "dot yellow" });
+        btn.createSpan({ cls: "dot yellow" });
       } else if (isExErr) {
-        iconRow.createSpan({ cls: "dot red" });
+        btn.createSpan({ cls: "dot red" });
+      } else if (tab) {
+        btn.createSpan({ cls: "dot gray" });
       } else {
-        iconRow.createSpan({ cls: "dot gray" });
+        // No matching tab yet — show "ready" dot
+        btn.createSpan({ cls: "dot gray" });
       }
 
-      btn.createSpan({ text: tab.name });
+      btn.createSpan({ text: group.name });
 
       btn.addEventListener("click", () => {
-        this.toggleProcess(tab);
+        if (tab) {
+          this.toggleProcess(tab);
+        } else {
+          this.startOrCreateTab(group.name, group.command, group.cwd || this.opts.defaultCwd);
+        }
       });
     }
   }
@@ -352,14 +297,115 @@ export class MergedRunnerInspectorView extends ItemView {
     const head = this.wliZoneEl.createDiv({ cls: "zone-head" });
     const chevron = head.createDiv({ cls: "zone-head-cv" });
     setIcon(chevron, "chevron-down");
-    head.createSpan({ cls: "zone-head-title", text: "双链检查" });
+    head.createSpan({ cls: "zone-head-title", text: "未解析双链" });
+    this.wliChevronEl = chevron;
+
+    // 清除全部按钮:把 [[x]] 转成 [x] 语法清除
+    const clearBtn = head.createDiv({
+      cls: "wli-action-btn",
+      title: "将所有未解析 [[x]] 转成 [x] (清除未解析状态)",
+    });
+    setIcon(clearBtn, "eraser");
+    clearBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onClearUnresolvedClick();
+    });
+    head.appendChild(clearBtn);
 
     this.wliBodyEl = this.wliZoneEl.createDiv({ cls: "zone-wli-body" });
+
+    head.addEventListener("click", () => {
+      this.wliCollapsed = !this.wliCollapsed;
+      setIcon(this.wliChevronEl, this.wliCollapsed ? "chevron-right" : "chevron-down");
+      this.wliBodyEl.toggleClass("is-collapsed", this.wliCollapsed);
+      this.wliZoneEl.toggleClass("is-shrunk", this.wliCollapsed);
+    });
   }
 
   private refreshWli(): void {
     this.rows = collectRows(makeSource(this.app));
     this.renderWliAll();
+  }
+
+  /** 清除未解析双链:[[x]] → [x] 语法清除(基于正则 + unresolved 过滤) */
+  private onClearUnresolvedClick(): void {
+    const unresolved = makeUnresolvedSource(this.app);
+    const allFiles = unresolved.listMarkdownFiles();
+    if (allFiles.length === 0) {
+      new Notice("没有可处理的文件");
+      return;
+    }
+
+    // 先统计总条数
+    let totalCount = 0;
+    for (const f of allFiles) {
+      const links = unresolved.getFileLinks(f.path);
+      if (!links) continue;
+      const set = unresolved.getUnresolvedTargets(f.path);
+      totalCount += links.filter((l) => set.has(l.link)).length;
+    }
+    if (totalCount === 0) {
+      new Notice("没有未解析双链");
+      return;
+    }
+
+    new ClearUnresolvedConfirmModal(this.app, totalCount, {
+      onConfirm: () => void this.runClearUnresolved(),
+    }).open();
+  }
+
+  /**
+   * 实际替换:用正则匹配每个文件中的 [[...]],只替换 unresolved 列表里的 target。
+   * 不依赖 metadataCache.position 的 start/end offset,避开 0/1-based 与 inclusive/exclusive 歧义。
+   */
+  private async runClearUnresolved(): Promise<void> {
+    const source = makeUnresolvedSource(this.app);
+    const linkRegex = /\[\[([^\]\n]+)\]\]/g;
+    let totalApplied = 0;
+    let filesTouched = 0;
+
+    for (const f of source.listMarkdownFiles()) {
+      const unresolvedSet = source.getUnresolvedTargets(f.path);
+      if (unresolvedSet.size === 0) continue;
+
+      const file = this.app.vault.getAbstractFileByPath(f.path);
+      if (!(file instanceof TFile)) continue;
+
+      const original = await this.app.vault.cachedRead(file);
+      const text = original.charCodeAt(0) === 0xfeff ? original.slice(1) : original;
+
+      // 收集这个文件中所有未解析双链的替换操作
+      const ops: { offset: number; len: number; replacement: string }[] = [];
+      let m: RegExpExecArray | null;
+      linkRegex.lastIndex = 0;
+      while ((m = linkRegex.exec(text)) !== null) {
+        const inside = m[1];
+        // 取 target(处理 alias [[a|b]])
+        const pipeIdx = inside.indexOf("|");
+        const target = (pipeIdx >= 0 ? inside.slice(0, pipeIdx) : inside).trim();
+        if (!unresolvedSet.has(target)) continue;
+        const replacement = "[" + (pipeIdx >= 0 ? inside.slice(pipeIdx + 1) : inside) + "]";
+        ops.push({ offset: m.index, len: m[0].length, replacement });
+      }
+
+      if (ops.length === 0) continue;
+
+      // 降序替换,避免偏移漂移
+      ops.sort((a, b) => b.offset - a.offset);
+      let out = text;
+      for (const o of ops) {
+        out = out.slice(0, o.offset) + o.replacement + out.slice(o.offset + o.len);
+      }
+
+      if (out !== text) {
+        await this.app.vault.modify(file, out);
+        totalApplied += ops.length;
+        filesTouched++;
+      }
+    }
+
+    new Notice(`已清除 ${totalApplied} 条未解析双链（${filesTouched} 个文件）`);
+    this.refreshWli();
   }
 
   private scheduleWliRefresh(): void {
@@ -374,105 +420,35 @@ export class MergedRunnerInspectorView extends ItemView {
     this.wliBodyEl.empty();
     const { unresolved } = partitionByState(this.rows);
 
-    // Update zone title with count
+    // Update zone title with only unresolved count
     const titleEl = this.wliZoneEl.querySelector(".zone-head-title");
     if (titleEl) {
-      titleEl.setText(`双链检查 (${this.rows.length})`);
+      titleEl.setText(`未解析双链 (${unresolved.length})`);
     }
 
-    this.renderWliGroup("unresolved", "未解析", unresolved);
-    // this.renderWliGroup("resolved", "已解析", resolved);
-  }
-
-  private renderWliGroup(
-    key: "resolved" | "unresolved",
-    label: string,
-    rows: LinkRow[],
-  ): void {
-    if (key === "unresolved" && rows.length === 0) {
+    if (unresolved.length === 0) {
+      this.wliBodyEl.createDiv({
+        cls: "wli-empty",
+        text: "所有双链均已解析",
+      });
       return;
     }
 
-    const section = this.wliBodyEl.createDiv({
-      cls: `wli-sub is-${key}${this.collapsed[key] ? " is-collapsed" : ""}`,
-    });
-
-    const head = section.createDiv({ cls: "wli-sub-head" });
-    const chevron = head.createDiv({ cls: "wli-sub-head-cv" });
-    setIcon(chevron, this.collapsed[key] ? "chevron-right" : "chevron-down");
-    head.createSpan({ cls: "wli-sub-head-title", text: `${label} (${rows.length})` });
-
-    head.addEventListener("click", () => {
-      this.collapsed[key] = !this.collapsed[key];
-      this.renderWliAll();
-    });
-
-    const body = section.createDiv({ cls: "wli-sub-body" });
-
-    const shown = rows.slice(0, this.limit[key]);
+    const shown = unresolved.slice(0, this.limit.unresolved);
     for (const r of shown) {
-      renderInspectorRow(body, r, (row) => void this.openSource(row));
+      renderInspectorRow(this.wliBodyEl, r, (row) => void this.openSource(row));
     }
 
-    if (rows.length > this.limit[key]) {
-      const more = body.createDiv({
+    if (unresolved.length > this.limit.unresolved) {
+      const more = this.wliBodyEl.createDiv({
         cls: "wli-load-more",
-        text: `加载更多 +${DEFAULT_PREVIEW}（剩 ${rows.length - this.limit[key]}）`,
+        text: `加载更多 +${DEFAULT_PREVIEW}（剩 ${unresolved.length - this.limit.unresolved}）`,
       });
       more.addEventListener("click", () => {
-        this.limit[key] += DEFAULT_PREVIEW;
+        this.limit.unresolved += DEFAULT_PREVIEW;
         this.renderWliAll();
       });
     }
-  }
-
-  /** 修复按钮点击 —— 开确认弹窗 */
-  private onRepairBtnClick(): void {
-    const status = this.opts.getRepairTabStatus();
-    new WliRepairConfirmModal(this.app, status, {
-      onLaunch: () => {
-        void this.opts.onRepairUnresolvedLinks();
-      },
-      onReveal: () => {
-        // 找到修复 tab 并展开(替代旧 revealRunnerTab leaf 切换)
-        const tab = this.findTabByCommand(
-          "claude --dangerously-skip-permissions -p \"/obsidian-repair-unresolved-links\"",
-        );
-        if (tab) {
-          this.expandedIds.add(tab.id);
-          this.renderProcAll();
-        }
-      },
-    }).open();
-  }
-
-  // ---- 清除未解析双链 ---------------------------------------------------------
-
-  private onClearUnresolvedClick(): void {
-    const edits = collectUnresolvedEdits(makeUnresolvedSource(this.app));
-    if (edits.length === 0) {
-      new Notice("没有未解析双链");
-      return;
-    }
-    new ClearUnresolvedConfirmModal(this.app, edits.length, {
-      onConfirm: () => void this.runClearUnresolved(edits),
-    }).open();
-  }
-
-  private async runClearUnresolved(edits: UnresolvedEdit[]): Promise<void> {
-    const byPath = groupEditsByPath(edits);
-    let totalApplied = 0;
-    for (const [path, group] of byPath) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (!(file instanceof TFile)) continue;
-      const original = await this.app.vault.cachedRead(file);
-      const bomStripped = original.charCodeAt(0) === 0xfeff ? original.slice(1) : original;
-      const { result, applied } = applyEditsToString(bomStripped, group);
-      if (applied === 0) continue;
-      await this.app.vault.modify(file, result);
-      totalApplied += applied;
-    }
-    new Notice(`已清除 ${totalApplied} 条未解析双链`);
   }
 
   // ---- 进程日志 Section ------------------------------------------------------
@@ -480,17 +456,44 @@ export class MergedRunnerInspectorView extends ItemView {
   private buildProcSection(): void {
     const head = this.procZoneEl.createDiv({ cls: "zone-head" });
     const chevron = head.createDiv({ cls: "zone-head-cv" });
-    setIcon(chevron, "chevron-down");
+    setIcon(chevron, "chevron-right");
     head.createSpan({ cls: "zone-head-title", text: "终端输出" });
     this.procChevronEl = chevron;
 
     this.procBodyEl = this.procZoneEl.createDiv({ cls: "zone-proc-body" });
 
+    // collapse whole zone by default
+    this.procCollapsed = true;
+
     head.addEventListener("click", () => {
       this.procCollapsed = !this.procCollapsed;
       setIcon(this.procChevronEl, this.procCollapsed ? "chevron-right" : "chevron-down");
       this.procBodyEl.toggleClass("is-collapsed", this.procCollapsed);
+      this.procZoneEl.toggleClass("is-shrunk", this.procCollapsed);
     });
+  }
+
+  /** 切换日志区块显示/隐藏 */
+  private toggleLogSection(): void {
+    this.logSectionVisible = !this.logSectionVisible;
+    this.procZoneEl.toggleClass("is-collapsed", !this.logSectionVisible);
+    this.logBtnEl.toggleClass("is-active", this.logSectionVisible);
+    if (this.logSectionVisible) {
+      setIcon(this.logBtnEl, "eye-off");
+      // update log-btn text
+      const span = this.logBtnEl.querySelector("span");
+      if (span) span.setText("隐藏日志");
+    } else {
+      setIcon(this.logBtnEl, "terminal");
+      const span = this.logBtnEl.querySelector("span");
+      if (span) span.setText("日志");
+    }
+    // 展开时同步展开 zone body
+    if (this.logSectionVisible && this.procCollapsed) {
+      this.procCollapsed = false;
+      setIcon(this.procChevronEl, "chevron-down");
+      this.procBodyEl.removeClass("is-collapsed");
+    }
   }
 
   /**
@@ -543,7 +546,7 @@ export class MergedRunnerInspectorView extends ItemView {
     if (this.tabs.length === 0 && !this.formMode) {
       this.procBodyEl.createDiv({
         cls: "proc-empty",
-        text: "暂无进程,点击 + 新建进程 添加",
+        text: "暂无进程,在设置 > 命令组管理中添加快捷命令",
       });
       return;
     }
@@ -665,14 +668,7 @@ export class MergedRunnerInspectorView extends ItemView {
     this.renderProcAll();
   }
 
-  // ---- 内联表单(新建/编辑进程) -----------------------------------------------
-
-  private showAddForm(): void {
-    if (this.formMode) return;
-    this.formMode = "add";
-    this.editingTabId = null;
-    this.renderForm();
-  }
+  // ---- 内联表单(编辑进程) -----------------------------------------------
 
   private showEditForm(tab: RunnerTab): void {
     if (this.formMode) return;
@@ -769,22 +765,14 @@ export class MergedRunnerInspectorView extends ItemView {
     );
   }
 
+
+
   private async openSettings(): Promise<void> {
     const app = this.app as unknown as {
       setting: { open(): Promise<void>; openTabById(id: string): void };
     };
     await app.setting.open();
     app.setting.openTabById("local-runner");
-  }
-
-  private getTargetMarkdownView(): MarkdownView | null {
-    const active = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (active) return active;
-    const leaves = this.app.workspace.getLeavesOfType("markdown");
-    for (const leaf of leaves) {
-      if (leaf.view instanceof MarkdownView) return leaf.view;
-    }
-    return null;
   }
 
   private async openSource(row: LinkRow): Promise<void> {

@@ -19,9 +19,9 @@ const localOutFile = path.join(__dirname, "main.js");
 /** vault 插件目录 */
 const vaultPluginDir = process.env.LOCAL_RUNNER_VAULT
   ? path.resolve(process.env.LOCAL_RUNNER_VAULT)
-  : path.resolve(__dirname, "..", "123", ".obsidian", "plugins", "local-runner");
+  : path.resolve("D:\\code\\a_md\\obsidian_init", ".obsidian", "plugins", "local-runner");
 
-const syncEnabled = !prod;
+const syncEnabled = true;
 
 // ---- vendor external ----
 

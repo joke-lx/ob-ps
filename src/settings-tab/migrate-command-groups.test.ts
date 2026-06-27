@@ -13,8 +13,18 @@ describe("migrateCommandGroups", () => {
     ];
     const out = migrateCommandGroups(input);
     expect(out).toEqual([
-      { id: "g1", name: "dev", command: "npm run dev", cwd: "" },
-      { id: "g2", name: "build", command: "npm run build", cwd: "/abs" },
+      { id: "g1", name: "dev", command: "npm run dev", cwd: "", visible: true },
+      { id: "g2", name: "build", command: "npm run build", cwd: "/abs", visible: true },
+    ]);
+  });
+
+  it("新形状保留 visible:false", () => {
+    const input = [
+      { id: "g1", name: "dev", command: "npm run dev", cwd: "", visible: false },
+    ];
+    const out = migrateCommandGroups(input);
+    expect(out).toEqual([
+      { id: "g1", name: "dev", command: "npm run dev", cwd: "", visible: false },
     ]);
   });
 
