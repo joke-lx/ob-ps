@@ -38,6 +38,8 @@ import {
   type FormPrefill,
   type FormSubmitResult,
 } from "./process-form";
+import { TreeLinkView } from "../link-tree/link-tree-view";
+import type { CreationEvent } from "../link-tree/creation-event";
 
 export const MERGED_VIEW_TYPE = "merged-runner-inspector-view";
 
@@ -51,9 +53,11 @@ export interface MergedViewOptions {
   onSaveCommandGroups: (groups: CommandGroup[]) => void;
   getRepairTabStatus: () => RepairTabStatus;
   onRepairUnresolvedLinks: () => void | Promise<void>;
+  /** 返回当前 linkTree 事件列表（由 main.ts 在捕获后更新） */
+  getLinkTreeEvents: () => CreationEvent[];
 }
 
-function makeSource(app: App): CollectorSource {
+export function makeSource(app: App): CollectorSource {
   return {
     listFiles() {
       return app.vault.getMarkdownFiles().map((f) => ({
@@ -125,10 +129,23 @@ export class MergedRunnerInspectorView extends ItemView {
   private procChevronEl!: HTMLElement;
   private procCollapsed = false;
   private formEl!: HTMLElement;
+  /** 完善历史树 */
+  private treeView!: TreeLinkView;
+  private treeContainerEl!: HTMLElement;
 
   constructor(leaf: WorkspaceLeaf, opts: MergedViewOptions) {
     super(leaf);
     this.opts = opts;
+    this.treeView = new TreeLinkView((event) => {
+      void this.openSource({
+        sourcePath: event.sourcePath,
+        position: event.position,
+        target: event.target,
+        state: "resolved",
+        sourceCtime: event.firstSeenAt,
+      });
+      this.scheduleWliRefresh();
+    });
   }
 
   getViewType(): string {
@@ -142,6 +159,7 @@ export class MergedRunnerInspectorView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    console.log("[link-tree] onOpen start");
     this.buildUi();
     this.refreshWli();
     this.registerEvent(
@@ -163,6 +181,7 @@ export class MergedRunnerInspectorView extends ItemView {
         stopProcess(tab, () => {});
       }
     }
+    try { this.treeView.destroy(); } catch { /* ok */ }
   }
 
   // ---- Public API for main.ts -----------------------------------------------
@@ -354,12 +373,34 @@ export class MergedRunnerInspectorView extends ItemView {
     setIcon(chevron, "chevron-down");
     head.createSpan({ cls: "zone-head-title", text: "双链检查" });
 
+    // 完善历史树 canvas（容错：如果挂载失败不阻止其余 UI）
+    this.treeContainerEl = this.wliZoneEl.createDiv({
+      cls: "wli-tree-container",
+      attr: { style: "min-height:120px;max-height:360px;width:100%" },
+    });
+    try {
+      this.treeView.mount(this.treeContainerEl);
+    } catch (e) {
+      console.warn("[link-tree] mount failed", e);
+    }
+
     this.wliBodyEl = this.wliZoneEl.createDiv({ cls: "zone-wli-body" });
   }
 
   private refreshWli(): void {
     this.rows = collectRows(makeSource(this.app));
     this.renderWliAll();
+    // 更新完善历史树
+    try {
+      const events = this.opts.getLinkTreeEvents();
+      if (events.length || this.treeContainerEl?.isConnected) {
+        const activePath = this.getActiveNotePath();
+        console.log("[link-tree] refreshWli => update", { events: events.length, activePath });
+        this.treeView.updateFromApp(events, this.app, activePath);
+      }
+    } catch (e) {
+      console.warn("[link-tree] update failed", e);
+    }
   }
 
   private scheduleWliRefresh(): void {
@@ -785,6 +826,11 @@ export class MergedRunnerInspectorView extends ItemView {
       if (leaf.view instanceof MarkdownView) return leaf.view;
     }
     return null;
+  }
+
+  /** 当前打开笔记的路径（用于作用域过滤） */
+  private getActiveNotePath(): string | null {
+    return this.getTargetMarkdownView()?.file?.path ?? null;
   }
 
   private async openSource(row: LinkRow): Promise<void> {

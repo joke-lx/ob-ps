@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { PluginSettings } from "../types/settings";
 import type { ProcessConfig } from "../types/process";
+import type { LinkTreeStore } from "../link-tree/creation-event";
 
 /** 数据备份文件名,存放在 vault 的 .obsidian 目录下(卸载插件时不会被清理) */
 export const BACKUP_FILE = "local-runner-backup.json";
@@ -11,6 +12,7 @@ export const BACKUP_FILE = "local-runner-backup.json";
 export interface BackupPayload {
   processes: ProcessConfig[];
   settings?: PluginSettings;
+  linkTree?: LinkTreeStore;
 }
 
 /** 可选 Notice 回调 */
@@ -79,10 +81,11 @@ export function restoreDataBackup(
     const parsed = JSON.parse(raw) as {
       processes?: ProcessConfig[];
       settings?: PluginSettings;
+      linkTree?: LinkTreeStore;
     };
     // 恢复后删除备份,避免后续卸载时残留
     fs.rmSync(backupPath, { force: true });
-    return { processes: parsed.processes ?? [], settings: parsed.settings };
+    return { processes: parsed.processes ?? [], settings: parsed.settings, linkTree: parsed.linkTree };
   } catch (err) {
     notice(`❌ 恢复数据备份失败: ${(err as Error).message}`);
     return null;

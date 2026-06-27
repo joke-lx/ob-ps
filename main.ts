@@ -22,6 +22,11 @@ import {
 } from "./src/wikilink-inspector";
 import { isSkillInstalled } from "./src/skills/repair-links";
 import { flattenWikilinks } from "./src/wikilink-inspector/flatten-links";
+import { collectRows } from "./src/wikilink-inspector/link-collector";
+import { makeSource } from "./src/view/merged-view";
+import { capture, buildDedupSet } from "./src/link-tree/creation-tracker";
+import { loadEvents, appendEvents, createEmptyStore, type HasLinkTree } from "./src/link-tree/link-tree-repository";
+import type { CreationEvent } from "./src/link-tree/creation-event";
 
 /** 编程方式跳转到设置标签页(内部 API) */
 interface AppWithSetting {
@@ -32,6 +37,7 @@ interface AppWithSetting {
 interface PluginData {
   processes: ProcessConfig[];
   settings?: PluginSettings;
+  linkTree?: { events: CreationEvent[]; version: number };
 }
 
 /**
@@ -50,6 +56,8 @@ export default class LocalRunnerPlugin extends Plugin {
   private savedConfigs: ProcessConfig[] = [];
   /** 设置 */
   settings: PluginSettings = DEFAULT_SETTINGS;
+  /** 完善历史树事件日志 */
+  private linkTreeEvents: CreationEvent[] = [];
 
   async onload(): Promise<void> {
     // 1. 加载持久化数据
@@ -67,6 +75,7 @@ export default class LocalRunnerPlugin extends Plugin {
 
     this.savedConfigs = data?.processes ?? [];
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+    this.linkTreeEvents = loadEvents(data ?? null);
 
     // 3. 迁移 commandGroups:旧「一组多预设」→ 新「一组一命令」
     const rawGroups = this.settings.commandGroups;
@@ -155,7 +164,8 @@ export default class LocalRunnerPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData({ processes: this.savedConfigs, settings: this.settings });
+    const store = { events: this.linkTreeEvents, version: 1 };
+    await this.saveData({ processes: this.savedConfigs, settings: this.settings, linkTree: store });
     // 开启保留时同步刷新备份;关闭时清除已有备份
     const vault = this.getDefaultCwd();
     const configDir = this.app.vault.configDir;
@@ -213,6 +223,14 @@ export default class LocalRunnerPlugin extends Plugin {
     const existing = view.findTabByCommand(REPAIR_UNRESOLVED_LINKS_COMMAND);
     if (existing && isRunning(existing)) {
       stopProcess(existing, () => {});
+    }
+
+    // 4b) 捕获当前未解析双链 → append 到 linkTree 日志
+    const rows = collectRows(makeSource(this.app));
+    const newEvents = capture(rows, buildDedupSet(this.linkTreeEvents), REPAIR_UNRESOLVED_LINKS_COMMAND, Date.now());
+    if (newEvents.length) {
+      this.linkTreeEvents = appendEvents(this.linkTreeEvents, newEvents).events;
+      await this.saveSettings();
     }
 
     // 5) 启动 (复用同名 或 新建)
@@ -273,6 +291,7 @@ export default class LocalRunnerPlugin extends Plugin {
       },
       getRepairTabStatus: () => this.getRepairTabStatus(),
       onRepairUnresolvedLinks: () => void this.onRepairUnresolvedLinks(),
+      getLinkTreeEvents: () => this.linkTreeEvents,
     };
   }
 
