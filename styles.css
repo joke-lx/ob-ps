@@ -85,7 +85,7 @@
 /* Zone 2: wli — fills remaining space */
 .merged-zone-wli {
   flex: 1 1 0;
-  min-height: 40px;
+  min-height: 80px;
   gap: 2px;
 }
 .merged-zone-wli.is-shrunk {
@@ -94,7 +94,7 @@
 /* Zone 3: proc — fills remaining space when visible */
 .merged-zone-proc {
   flex: 1 1 0;
-  min-height: 40px;
+  min-height: 80px;
   gap: 2px;
 }
 .merged-zone-proc.is-shrunk {
@@ -253,6 +253,38 @@
   flex-direction: column;
   gap: 1px;
   margin-top: 2px;
+}
+.zone-wli-body.is-collapsed {
+  display: none;
+}
+
+/* ===== 完善历史树 canvas 容器 ===== */
+.wli-tree-container {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 300px;
+  max-height: 500px;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-top: 6px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+}
+.wli-tree-container.is-hidden {
+  display: none;
+}
+.wli-tree-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.wli-tree-container canvas:active {
+  cursor: grabbing;
+}
+.theme-dark .wli-tree-container {
+  background: var(--background-primary-alt);
 }
 
 .wli-empty {
