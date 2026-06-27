@@ -31,8 +31,12 @@ export class LinkTreeCanvas {
   private layoutMap = new Map<string, { x: number; y: number; w: number; h: number; hasC: boolean; hid: string | null }>();
   private evMap = new Map<string, CreationEvent>();
   private hoverId: string | null = null;
-  private selectedId: string | null = null;
+  private clickedId: string | null = null;
+  private activeId: string | null = null;
   private firstUpdate = true;
+
+  // 平滑动画
+  private animRaf: number | null = null;
 
   // 拖拽状态
   private drag = false;
@@ -54,8 +58,8 @@ export class LinkTreeCanvas {
       this._ro = new ResizeObserver(() => {
         if (this.nodes.length > 0 && this.canvas && this.canvas.clientWidth > 0 && !this.firstUpdate) {
           this.fit();
-          if (this.selectedId && this.layoutMap.has(this.selectedId)) {
-            this._panToCenter(this.selectedId);
+          if (this.activeId && this.layoutMap.has(this.activeId)) {
+            this._animatePanTo(this.activeId);
           }
         }
         this._rf();
@@ -64,13 +68,15 @@ export class LinkTreeCanvas {
     } catch { /* 兼容性 fallback — window.resize 兜底 */ }
   }
 
-  update(events: CreationEvent[], deps: ProjectDeps, highlightNodeId?: string | null): void {
-    console.log("[link-tree] canvas.update events:", events.length);
+  update(
+    events: CreationEvent[],
+    deps: ProjectDeps,
+    activeNoteTarget?: string | null,
+  ): void {
     this.evMap.clear();
     for (const e of events) this.evMap.set(e.target, e);
 
     const treeRoots = projectTree(events, deps);
-    console.log("[link-tree] projectTree roots:", treeRoots.length);
 
     // 建 LayoutNode 森林：带 ghost origin
     const ghostMap = new Map<string, TreeNode[]>();
@@ -134,30 +140,24 @@ export class LinkTreeCanvas {
 
     for (const r of layoutRoots) walk(r);
 
-    console.log("[link-tree] drawNodes:", nd.length, "edges:", ed.length, "layoutNodes:", this.layoutMap.size);
-
     this.nodes = nd;
     this.edges = ed;
 
+    // 更新 activeId（当前打开的笔记 → 高亮节点）
+    const newActive = activeNoteTarget ?? null;
+    const activeChanged = newActive !== this.activeId;
+    this.activeId = newActive;
+
     if (this.firstUpdate) {
-      this.selectedId = highlightNodeId ?? null;
+      // 首次加载：fit 到全景，若有 active 则居中
       this.fit();
-      if (this.selectedId && this.layoutMap.has(this.selectedId)) {
-        this._panToCenter(this.selectedId);
+      if (this.activeId && this.layoutMap.has(this.activeId)) {
+        this._panToCenter(this.activeId);
       }
       this.firstUpdate = false;
-    } else {
-      // 后续刷新
-      const highlightChanged = highlightNodeId !== this.selectedId;
-      if (highlightChanged) {
-        this.selectedId = highlightNodeId ?? null;
-        if (this.selectedId && this.layoutMap.has(this.selectedId)) {
-          this.fit();
-          this._panToCenter(this.selectedId);
-        } else {
-          // 切换到不在树中的笔记 → 清除高亮，保持视口
-        }
-      }
+    } else if (activeChanged && this.activeId && this.layoutMap.has(this.activeId)) {
+      // active 切换：平滑动画到新节点（保留 zoom）
+      this._animatePanTo(this.activeId);
     }
 
     this._rf();
@@ -207,7 +207,7 @@ export class LinkTreeCanvas {
       if (this._hi(w.x, w.y)) return;
       const hit = this._ht(w.x, w.y);
       if (hit && this.evMap.has(hit)) {
-        this.selectedId = hit;
+        this.clickedId = hit;
         this.cb?.onJump(this.evMap.get(hit)!);
         this._rf();
       }
@@ -255,7 +255,7 @@ export class LinkTreeCanvas {
   private _ro: ResizeObserver | null = null;
   private _rf(): void {
     if (!this.canvas || !this.renderer) return;
-    this.renderer.render(this.canvas, this.vp, this.nodes, this.edges, this.selectedId, this.hoverId);
+    this.renderer.render(this.canvas, this.vp, this.nodes, this.edges, this.clickedId, this.activeId, this.hoverId);
   }
   private _panToCenter(id: string): void {
     const n = this.layoutMap.get(id);
@@ -268,10 +268,63 @@ export class LinkTreeCanvas {
     this.vp.tx = (w / 2) - cx * this.vp.scale;
     this.vp.ty = (h / 2) - cy * this.vp.scale;
   }
+  /** 用 RAF 插值动画：~280ms 缓动到目标节点，保留缩放 */
+  private _animatePanTo(id: string): void {
+    if (this.animRaf !== null) {
+      cancelAnimationFrame(this.animRaf);
+      this.animRaf = null;
+    }
+    const target = this.layoutMap.get(id);
+    if (!target || !this.canvas) return;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if (!w || !h) return;
+
+    const cx = target.x + target.w / 2;
+    const cy = target.y + target.h / 2;
+
+    // 目标 scale：太远拉近、太近拉远到 1.0；正常范围保持
+    let targetScale: number;
+    if (this.vp.scale < 0.6) targetScale = 1.0;
+    else if (this.vp.scale > 1.2) targetScale = 1.0;
+    else targetScale = this.vp.scale;
+    // 目标 tx/ty 用最终 scale 算，保证居中后节点真的在屏幕中心
+    const targetTx = (w / 2) - cx * targetScale;
+    const targetTy = (h / 2) - cy * targetScale;
+
+    const startTx = this.vp.tx;
+    const startTy = this.vp.ty;
+    const startScale = this.vp.scale;
+    const duration = 320;
+    const t0 = performance.now();
+    const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      const k = easeOut(t);
+      // 同步插值：缩放按中间值算 tx/ty，再设缩放——保证节点视觉中心稳定
+      const curScale = startScale + (targetScale - startScale) * k;
+      // 用起始→目标的 tx/ty 插值（按最终 targetScale 算的目标），缩放随动
+      this.vp.tx = startTx + (targetTx - startTx) * k;
+      this.vp.ty = startTy + (targetTy - startTy) * k;
+      this.vp.scale = curScale;
+      this._rf();
+      if (t < 1) {
+        this.animRaf = requestAnimationFrame(step);
+      } else {
+        this.animRaf = null;
+      }
+    };
+    this.animRaf = requestAnimationFrame(step);
+  }
   setCollapsed(s: Set<string>): void {
     this.collapsed = s;
   }
   destroy(): void {
+    if (this.animRaf !== null) {
+      cancelAnimationFrame(this.animRaf);
+      this.animRaf = null;
+    }
     if (this.canvas.parentElement) this.canvas.parentElement.removeChild(this.canvas);
     window.removeEventListener("resize", this._rs);
     try { this._ro?.disconnect(); } catch { }

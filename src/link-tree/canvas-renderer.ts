@@ -85,10 +85,10 @@ export class CanvasRenderer {
     vp: Viewport,
     nodes: DrawNode[],
     edges: DrawEdge[],
-    selectedId: string | null,
+    clickedId: string | null,
+    activeId: string | null,
     hoveredId: string | null,
   ): void {
-    console.log("[link-tree] render", { w: canvas.clientWidth, h: canvas.clientHeight, nodes: nodes.length, edges: edges.length });
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth | 0;
     const h = canvas.clientHeight | 0;
@@ -109,8 +109,8 @@ export class CanvasRenderer {
     ctx.scale(vp.scale, vp.scale);
 
     for (const e of edges) this.drawEdge(e);
-    for (const n of nodes) if (n.isGhost) this.drawNodeBox(n, selectedId, hoveredId);
-    for (const n of nodes) if (!n.isGhost) this.drawNodeBox(n, selectedId, hoveredId);
+    for (const n of nodes) if (n.isGhost) this.drawNodeBox(n, clickedId, activeId, hoveredId);
+    for (const n of nodes) if (!n.isGhost) this.drawNodeBox(n, clickedId, activeId, hoveredId);
     for (const n of nodes) this.drawLabel(n);
     for (const n of nodes) this.drawToggle(n);
 
@@ -139,16 +139,35 @@ export class CanvasRenderer {
     ctx.stroke();
   }
 
-  private drawNodeBox(n: DrawNode, selId: string | null, hovId: string | null): void {
+  private drawNodeBox(
+    n: DrawNode,
+    clickedId: string | null,
+    activeId: string | null,
+    hovId: string | null,
+  ): void {
     const ctx = this.ctx;
     const t = this.theme;
-    const isSel = n.id === selId;
+    const isClicked = n.id === clickedId;
+    const isActive = n.id === activeId;
     const isHov = n.id === hovId;
     const color = n.isStale ? t.stale : (n.isCreated ? t.created : t.pending);
 
-    if (isSel || isHov) {
-      ctx.fillStyle = "rgba(59,110,247,0.10)";
+    // hover 光晕（最底层）
+    if (isHov) {
+      ctx.fillStyle = "rgba(59,110,247,0.07)";
       this.rr(n.x - 5, n.y - 5, n.w + 10, n.h + 10, 11);
+      ctx.fill();
+    }
+    // active 外环 + 背景（覆盖 hover，优先级更高）
+    if (isActive) {
+      ctx.fillStyle = "rgba(59,110,247,0.16)";
+      this.rr(n.x - 5, n.y - 5, n.w + 10, n.h + 10, 11);
+      ctx.fill();
+    }
+    // clicked 更强光晕（点击时短暂显示）
+    if (isClicked) {
+      ctx.fillStyle = "rgba(59,110,247,0.10)";
+      this.rr(n.x - 8, n.y - 8, n.w + 16, n.h + 16, 13);
       ctx.fill();
     }
 
@@ -163,7 +182,7 @@ export class CanvasRenderer {
       ctx.fill();
     }
 
-    ctx.lineWidth = 1;
+    ctx.lineWidth = isActive ? 2 : 1;
     if (n.isGhost) {
       ctx.strokeStyle = t.ghostBorder;
       ctx.save();
@@ -172,7 +191,11 @@ export class CanvasRenderer {
       ctx.stroke();
       ctx.restore();
     } else {
-      ctx.strokeStyle = isSel ? t.nodeBorderSelected : t.nodeBorder;
+      ctx.strokeStyle = isActive
+        ? t.accent
+        : isClicked
+          ? t.accent
+          : t.nodeBorder;
       this.rr(n.x, n.y, n.w, n.h, 8);
       ctx.stroke();
     }

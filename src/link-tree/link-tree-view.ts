@@ -91,17 +91,15 @@ export class TreeLinkView {
       : events;
     console.log("[link-tree] filtered events:", filtered.length);
 
-    // 当前笔记 → 对应树节点 id（target），用于高亮 + 定位
     const noteBasename = activeNotePath
       ? (activeNotePath.split("/").pop() ?? "").replace(/\.md$/i, "")
       : "";
-    const panToNodeId = noteBasename
+    const activeNoteTarget = noteBasename
       ? filtered.find((e) => normalizeTarget(e.target) === noteBasename)?.target ?? null
       : null;
-    console.log("[link-tree] panToNodeId:", panToNodeId, "from", noteBasename);
 
     this.canvas.setCollapsed(this.collapsed);
-    this.canvas.update(filtered, deps, panToNodeId);
+    this.canvas.update(filtered, deps, activeNoteTarget);
   }
 
   /** 便捷版本：从 app 构建 deps */

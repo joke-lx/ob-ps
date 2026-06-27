@@ -12,7 +12,8 @@ import path from "node:path";
 
 const VAULT_DIR  = "D:/DevProjects/my/test/test/obsidian/123";
 const TARGET_DIR = "概率论";
-const OUTPUT     = path.join(VAULT_DIR, "link-tree-events.json");
+/** 种子 JSON 写到插件 data.json —— Obsidian 标准数据位置 */
+const OUTPUT     = path.join(VAULT_DIR, ".obsidian/plugins/local-runner/data.json");
 const RUN_ID     = "seed";
 const BASE_TS    = 1000000;
 
@@ -133,8 +134,16 @@ function main() {
 
   events.sort((a, b) => a.firstSeenAt - b.firstSeenAt);
 
-  const output = JSON.stringify({ events, version: 1 }, null, 2);
-  fs.writeFileSync(OUTPUT, output, "utf8");
+  const seed = { events, version: 1 };
+
+  // 合并到插件 data.json（保留 processes/settings），不覆盖整个文件
+  let data = {};
+  if (fs.existsSync(OUTPUT)) {
+    try { data = JSON.parse(fs.readFileSync(OUTPUT, "utf8")); }
+    catch (e) { console.warn("⚠️  data.json 解析失败，将新建"); }
+  }
+  data.linkTree = seed;
+  fs.writeFileSync(OUTPUT, JSON.stringify(data, null, 2), "utf8");
 
   console.log(`✅ 已写入 ${events.length} 条事件 → ${OUTPUT}`);
 

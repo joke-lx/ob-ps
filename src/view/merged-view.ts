@@ -137,6 +137,7 @@ export class MergedRunnerInspectorView extends ItemView {
     super(leaf);
     this.opts = opts;
     this.treeView = new TreeLinkView((event) => {
+      // 跳转到源文件
       void this.openSource({
         sourcePath: event.sourcePath,
         position: event.position,
@@ -144,7 +145,11 @@ export class MergedRunnerInspectorView extends ItemView {
         state: "resolved",
         sourceCtime: event.firstSeenAt,
       });
+      // WLI 列表走 400ms 防抖（重算行成本高）
       this.scheduleWliRefresh();
+      // 树立刻更新（不防抖），立刻高亮 + 动画到源文件节点
+      const newActive = this.getActiveNotePath();
+      this.treeView.updateFromApp(this.opts.getLinkTreeEvents(), this.app, newActive);
     });
   }
 
@@ -159,7 +164,6 @@ export class MergedRunnerInspectorView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    console.log("[link-tree] onOpen start");
     this.buildUi();
     this.refreshWli();
     this.registerEvent(
@@ -167,6 +171,13 @@ export class MergedRunnerInspectorView extends ItemView {
     );
     this.registerEvent(
       this.app.metadataCache.on("changed", () => this.scheduleWliRefresh()),
+    );
+    // 用户切到不同笔记（active leaf 变化）→ 树立即高亮新节点 + 动画
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        const newActive = this.getActiveNotePath();
+        this.treeView.updateFromApp(this.opts.getLinkTreeEvents(), this.app, newActive);
+      }),
     );
     if (this.pendingConfigs) {
       this.setTabsFromConfigs(this.pendingConfigs);
