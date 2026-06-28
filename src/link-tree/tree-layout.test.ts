@@ -34,7 +34,6 @@ describe("layoutTree", () => {
   it("折叠节点当叶子处理：不占据子节点位置", () => {
     const nodes = [node("a", [node("b1", []), node("b2", [])])]; // 默认不折叠
     const r = layoutTree(nodes);
-    const a = r.nodes.get("a")!;
     expect(r.nodes.size).toBe(3); // a + b1 + b2
 
     // 折叠后：b1、b2 不应出现

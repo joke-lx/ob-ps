@@ -66,7 +66,7 @@ export interface LayoutNode {
  */
 export function layoutTree(roots: LayoutNode[]): LayoutResult {
   const positions = new Map<string, NodePos>();
-  const { nodeW, nodeH, colGap, rowGap, forestGap, padTop, padLeft } = LAYOUT;
+  const { nodeW, nodeH, colGap, rowGap, forestGap, padLeft } = LAYOUT;
 
   // 0. 后代计数（单遍后序遍历 O(n)）
   const desc = new Map<string, number>();

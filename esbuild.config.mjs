@@ -19,9 +19,12 @@ const localOutFile = path.join(__dirname, "main.js");
 /** vault 插件目录 */
 const vaultPluginDir = process.env.LOCAL_RUNNER_VAULT
   ? path.resolve(process.env.LOCAL_RUNNER_VAULT)
-  : path.resolve("D:\\code\\a_md\\obsidian_init", ".obsidian", "plugins", "local-runner");
+  : process.platform === "win32"
+    ? path.resolve("D:\\code\\a_md\\obsidian_init", ".obsidian", "plugins", "local-runner")
+    : null;
 
-const syncEnabled = true;
+/** 仅在设置 LOCAL_RUNNER_VAULT 或运行在 Windows 时同步到 vault */
+const syncEnabled = vaultPluginDir !== null;
 
 // ---- vendor external ----
 
@@ -44,7 +47,7 @@ const vendorExternal = [
 // ---- 同步工具函数 ----
 
 async function syncToVault() {
-  if (!syncEnabled) return;
+  if (!syncEnabled || !vaultPluginDir) return;
   try {
     await mkdir(vaultPluginDir, { recursive: true });
     await Promise.all([

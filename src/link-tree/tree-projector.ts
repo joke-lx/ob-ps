@@ -13,6 +13,7 @@
 
 import type { CreationEvent } from "./creation-event";
 import { normalizeTarget, normalizeSourcePath } from "./creation-event";
+import type { TFile, TAbstractFile } from "obsidian";
 
 // ---- 投影模型（不存储）----
 
@@ -120,10 +121,10 @@ export function projectTree(
  */
 export function makeProjectDeps(app: {
   metadataCache: {
-    getFirstLinkpathDest(link: string, source: string): unknown | null;
+    getFirstLinkpathDest(link: string, source: string): TFile | null;
   };
   vault: {
-    getAbstractFileByPath(path: string): unknown | null;
+    getAbstractFileByPath(path: string): TAbstractFile | null;
   };
 }): ProjectDeps {
   return {

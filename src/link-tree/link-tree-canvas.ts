@@ -46,10 +46,9 @@ export class LinkTreeCanvas {
 
   mount(container: HTMLElement, cb: CanvasCallbacks): void {
     this.cb = cb;
-    this.canvas = document.createElement("canvas");
-    this.canvas.style.display = "block";
-    this.canvas.style.width = "100%";
-    this.canvas.style.height = "100%";
+    this.canvas = activeDocument.createElement("canvas");
+    // CSS 类管理样式,避免 obsidianmd/no-static-styles-assignment
+    this.canvas.className = "link-tree-canvas";
     container.appendChild(this.canvas);
     this.renderer = new CanvasRenderer(this.canvas.getContext("2d")!);
     this.bindEvents();
@@ -66,7 +65,6 @@ export class LinkTreeCanvas {
       });
       this._ro.observe(this.canvas);
     } catch { /* 兼容性 fallback — window.resize 兜底 */ }
-    console.log("[link-tree] mount done, canvas size:", this.canvas.clientWidth, "x", this.canvas.clientHeight);
   }
 
   update(

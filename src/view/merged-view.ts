@@ -371,7 +371,7 @@ export class MergedRunnerInspectorView extends ItemView {
 
     // 树容器:挂在 wliBodyEl 末尾(由 WLI 列表独占 flex:1, 树用 position:absolute 脱离文档流)
     // 树展开时不挤压 WLI 列表
-    this.treeContainerEl = document.createElement("div");
+    this.treeContainerEl = activeDocument.createElement("div");
     this.treeContainerEl.className = "wli-tree-container is-hidden";
     this.wliBodyEl.appendChild(this.treeContainerEl);
     try {
@@ -382,7 +382,6 @@ export class MergedRunnerInspectorView extends ItemView {
 
     head.addEventListener("click", () => {
       this.wliCollapsed = !this.wliCollapsed;
-      console.log("[link-tree] head click, wliCollapsed=", this.wliCollapsed);
       setIcon(this.wliChevronEl, this.wliCollapsed ? "chevron-right" : "chevron-down");
       this.wliBodyEl.toggleClass("is-collapsed", this.wliCollapsed);
       this.wliZoneEl.toggleClass("is-shrunk", this.wliCollapsed);
@@ -430,22 +429,6 @@ export class MergedRunnerInspectorView extends ItemView {
     this.treeContainerVisible = !this.treeContainerVisible;
     this.treeContainerEl.toggleClass("is-hidden", !this.treeContainerVisible);
     this.treeToggleBtnEl.toggleClass("is-active", this.treeContainerVisible);
-    requestAnimationFrame(() => {
-      const el = this.treeContainerEl;
-      if (!el) return;
-      const cs = getComputedStyle(el);
-      const wliBody = this.wliBodyEl;
-      const wliZone = this.wliZoneEl;
-      console.log("[link-tree] toggle", this.treeContainerVisible, {
-        clientW: el.clientWidth, clientH: el.clientHeight,
-        display: cs.display, visibility: cs.visibility,
-        wliBodyH: wliBody?.clientHeight,
-        wliBodyChildren: wliBody?.children.length,
-        wliZoneH: wliZone?.clientHeight,
-        treeInWliBody: wliBody?.contains(el) ?? false,
-        treeInWliZone: wliZone?.contains(el) ?? false,
-      });
-    });
     if (this.treeContainerVisible) {
       // 首次展开时主动触发一次更新,确保 canvas 拿到正确尺寸
       const events = this.opts.getLinkTreeEvents();

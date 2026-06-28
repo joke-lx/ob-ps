@@ -15,6 +15,9 @@ export default tseslint.config(
 		'package.json',
 		'package-lock.json',
 		'tsconfig.json',
+		'.claude/hooks/*.js',         // git hooks 脚本(纯 Node.js,非 TS)
+		'**/node_modules/**',
+		'**/main.js',                 // esbuild 输出及 vault 同步副本
 	]),
 	{
 		languageOptions: {

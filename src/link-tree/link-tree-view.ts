@@ -80,12 +80,10 @@ export class TreeLinkView {
     this.currentEvents = events;
     this.currentDeps = deps;
     this.currentActiveNotePath = activeNotePath ?? null;
-    console.log("[link-tree] update", { raw: events.length, activeNotePath });
 
     const filtered = activeNotePath
       ? filterByActiveNote(events, activeNotePath)
       : events;
-    console.log("[link-tree] filtered events:", filtered.length);
 
     const noteBasename = activeNotePath
       ? (activeNotePath.split("/").pop() ?? "").replace(/\.md$/i, "")
